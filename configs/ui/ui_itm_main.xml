@@ -1,0 +1,143 @@
+<w>
+	<itm_pda>
+		<form x="97" y="99" width="829" height="570" stretch="1">
+			<texture>ui_npc_pda_frame</texture>
+			
+			<state x="82" y="65" width="631" height="435">
+				<text complex_mode="1" r="200" g="200" b="200" vert_align="c" align="c" font="graffiti32"/>
+			</state>
+			<battery_low x="382" y="253" width="64" height="64"/>
+			
+			<noise x="82" y="65" width="631" height="435"/>
+			
+			<border x="82" y="65" width="631" height="435" stretch="1">
+				<!-- Top -->
+				<auto_frameline x="0" y="0" width="631" height="1" vertical="0">
+					<texture>ui_inGame2_pda_line_horizontal</texture>
+				</auto_frameline>
+				<!-- Middle -->
+				<auto_frameline x="0" y="217" width="315" height="1" vertical="0">
+					<texture>ui_inGame2_pda_line_horizontal</texture>
+				</auto_frameline>
+				<!-- Bottom -->
+				<auto_frameline x="0" y="435" width="631" height="1" vertical="0">
+					<texture>ui_inGame2_pda_line_horizontal</texture>
+				</auto_frameline>
+				<!-- Left -->
+				<auto_frameline x="0" y="1" width="1" height="434" vertical="1">
+					<texture>ui_inGame2_pda_line_vertical</texture>
+				</auto_frameline>
+				<!-- Right -->
+				<auto_frameline x="631" y="1" width="1" height="434" vertical="1">
+					<texture>ui_inGame2_pda_line_vertical</texture>
+				</auto_frameline>
+				<!-- Center -->
+				<auto_frameline x="315" y="1" width="1" height="434" vertical="1">
+					<texture>ui_inGame2_pda_line_vertical</texture>
+				</auto_frameline>
+			</border>
+
+			<!-- Contact info -->
+			<contact>
+				<icon x="178" y="100" width="123" height="87"/>
+				<name x="83" y="197" width="315" height="20">
+					<text complex_mode="1" r="200" g="200" b="200" align="c" font="letterica16"/>
+				</name>
+				<comm x="83" y="217" width="315" height="20">
+					<text complex_mode="1" r="150" g="150" b="150" align="c" font="letterica16"/>
+				</comm>
+				<rank x="83" y="237" width="315" height="20">
+					<text complex_mode="1" r="150" g="150" b="150" align="c" font="letterica16"/>
+				</rank>
+				<rep x="83" y="257" width="315" height="20">
+					<text complex_mode="1" r="150" g="150" b="150" align="c" font="letterica16"/>
+				</rep>
+			</contact>
+			
+			<message_list x="83" y="283" width="315" height="217" item_height="60" can_select="1" always_show_scroll="0">
+				<font font="letterica16" r="150" g="150" b="150"/>
+			</message_list>
+			
+			<description>
+				<scrollbar x="398" y="66" width="315" height="435" right_ident="0" left_ident="0" top_indent="0" bottom_indent="0" vert_interval="0" always_show_scroll="0"/>
+				<information width="300" height="1">
+					<text font="letterica16" r="150" g="150" b="150" complex_mode="1" align="l" vert_align="t" x="5" y="6"/>
+				</information>
+				<information2 width="300" height="1">
+					<text font="letterica16" r="150" g="150" b="150" complex_mode="1" align="l" vert_align="t" x="5" y="6"/>
+				</information2>
+				<image_container>
+					<image x="5" y="8" width="0" height="0"></image>
+				</image_container>
+			</description>
+			
+			<btn_ok x="731" y="226" width="62" height="115">
+				<text r="150" g="150" b="150" font="letterica16" align="c"></text>
+				<texture>ui_button_empty</texture>
+			</btn_ok>
+		</form>
+	</itm_pda>
+
+	<bar_measurement x="0" y="420" width="1024" height="50">
+		<text complex_mode="1" r="0" g="250" b="100" align="c"  vert_align="c" font="letterica18" />
+	</bar_measurement>
+	
+	<itm_backpack>
+		<background x="400" y="335" width="600" height="300">
+			<auto_static x="-5" y="0" width="240" height="85" stretch="1">
+				<texture>ui_inGame2_message_box</texture>
+			</auto_static>
+		</background>
+
+		<btn_cancel x="35" y="52" width="70" height="28" stretch="1" check_mode="0">
+			<text font="letterica16">ui_inv_cancel</text>
+			<texture>ui_button_ordinary</texture>
+		</btn_cancel>
+
+		<btn_ok x="125" y="52" width="70" height="28" stretch="1" check_mode="0">
+			<text font="letterica16">ui_inv_ok</text>
+			<texture>ui_button_ordinary</texture>
+		</btn_ok>
+
+		<input x="415" y="355" width="200" height="30" stretch="1">
+			<text x="5" font="letterica16" vert_align="c" align="l"/>
+			<texture>ui_inGame2_edit_box_2</texture>
+		</input>
+	</itm_backpack>
+
+	<itm_map>
+		<frame x="0" y="0" width="1024" height="768"/> <!-- base -->
+	
+		<box_map x="166" y="137" width="711" height="504"/>
+		<text_map x="371" y="595" width="300" height="32">
+			<text complex_mode="1" r="255" g="255" b="255" align="c" vert_align="c" font="letterica25"/>
+		</text_map>	
+		
+		<btn_previous x="190" y="595" width="68" height="32">
+			<text r="150" g="150" b="150" font="letterica16" align="c">ui_mm_previous</text>
+			<texture>ui_button_empty</texture>
+		</btn_previous>
+		<btn_previous_pic x="190" y="595" width="68" height="32"/>
+		
+		<btn_next x="785" y="595" width="68" height="32">
+			<text r="150" g="150" b="150" font="letterica16" align="c">ui_mm_next</text>
+			<texture>ui_button_empty</texture>
+		</btn_next>
+		<btn_next_pic x="785" y="595" width="68" height="32"/>
+		
+		<btn_ok x="190" y="151" width="68" height="32">
+			<text r="150" g="150" b="150" font="letterica16" align="c">ui_mm_ok</text>
+			<texture>ui_button_empty</texture>
+		</btn_ok>
+		<btn_ok_pic x="190" y="151" width="68" height="32"/>
+	</itm_map>
+	
+	<hint_wnd x="0" y="0" width="300" height="100">
+	    <background x="0" y="0" width="300" height="100">
+		    <texture>ui_icons_PDA_tooltips</texture>
+	    </background>
+	    <text x="20" y="20" width="275" height="100">
+	    	<text font="letterica16" r="140" g="140" b="140" complex_mode="1" align="l" vert_align="t"/>
+	    </text>
+	</hint_wnd>
+</w>

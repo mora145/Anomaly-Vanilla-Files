@@ -1,0 +1,1956 @@
+---------------------------------------
+--	itms_manager
+--
+-- by Alundaio
+---------------------------------
+--[[
+Copyright (C) 2012 Alundaio
+This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License-]]
+--]]
+
+-- =======================================================================================
+-- Modified by Tronex
+-- 2018/7/18 - Added support for new usable items (maps,craft)
+-- 2018/7/21 - Added the ability to gather/separate muti-use items
+-- 2018/7/26 - Added the ability to disassemble misc items
+-- 2018/7/26 - Rewrote a lot of function with better codes
+-- 2018/7/31 - Added new items, battery consumption for geiger counter and gps tracker
+-- 2018/8/2  - Drag artefacts on containers to put them in, container tool is no longer used
+-- 2019/2/16 - Organized the items in tables for global use
+-- 2019/9/19 - Bolt count manager
+-- =======================================================================================
+-- local uses = obj:get_remaining_uses()
+-- local max_uses = obj:get_max_uses()
+-- obj:set_remaining_uses(num)
+
+
+-- Prepare ini files
+ini_manager = ini_file("items\\settings\\itms_manager.ltx")
+ini_backpack = ini_file("items\\settings\\backpack_stash.ltx")
+ini_mutant = ini_file("items\\settings\\mutant_loot.ltx")
+ini_container = ini_file("items\\settings\\arty_container.ltx")
+ini_device = ini_file("items\\settings\\devices.ltx")
+ini_parts = ini_file("items\\settings\\parts.ltx")
+ini_craft = ini_file("items\\settings\\craft.ltx")
+ini_cook = ini_file("items\\settings\\cook.ltx")
+ini_death = ini_file("items\\settings\\death_generic.ltx")
+ini_reward = ini_file("items\\settings\\item_rewards.ltx")
+ini_box = ini_file("items\\settings\\ph_box_generic.ltx")
+
+local sfind = string.find
+local n = 0
+local result,id,value = "","",""
+
+-- Collect item sections of main tools
+itms_ammo = {}
+itms_consumable = {}
+itms_multiuse = {}
+itms_multiuse_r = {}
+
+itms_backpack = {}
+itms_recipe = {}
+itms_repair = {}
+itms_workshop_tools = {}
+itms_disassemble = {}
+itms_cook = {}
+itms_meal = {}
+itms_eatable = {}
+itms_map = {}
+itms_money = {}
+itms_letter = {}
+itms_device = {}
+itms_tools = {}
+itms_parts = {}
+itms_upgrades = {}
+itms_arty_container = alun_utils.collect_section(ini_container,"containers",true) or {}
+itm_battery = ini_device:r_string_ex("settings","battery") or "batteries_dead"
+itm_geiger = ini_device:r_string_ex("settings","geiger") or "detector_geiger"
+itms_npc_pda = {
+	["itm_pda_common"]		= true,
+	["itm_pda_uncommon"]	= true,
+	["itm_pda_rare"]		= true,
+}
+itms_anim = {
+	["bolt"] = true,
+	["medkit_script"] = true,
+	["guitar_a"] = true,
+	["guitar_a2"] = true,
+	["harmonica_a"] = true,
+	["wpn_binoc"] = true,
+	["anim_binoc"] = true,
+	["anim_knife"] = true,
+	["device_torch"] = true,
+	["device_pda"] = true,
+	["hand_radio"] = true,
+	["hand_radio_r"] = true,
+	["stick_bred"] = true,
+	["stick_kolbasa"] = true,
+	["stick_kolbasa_bred"] = true,
+	["pda_for_nps"] = true,
+	["sigaret_for_nps"] = true,
+}
+itms_release = { -- release from actor on first update
+	["device_pda"] = true,
+	["anim_mask_clean"] = true,
+	["anim_headlamp"] = true,
+}
+itms_no_ammo = {
+	["wpn_binoc"] = true,
+	["wpn_knife"] = true,
+	["wpn_knife2"] = true,
+	["wpn_knife3"] = true,
+	["wpn_knife4"] = true,
+	["wpn_knife5"] = true,
+	["wpn_axe"] = true,
+	["wpn_axe2"] = true,
+	["wpn_axe3"] = true,
+}
+
+local empty_syringe_items = {}
+n = ini_manager:line_count("empty_syringe_items")
+for i=0,n-1 do
+	result, id, value = ini_manager:r_line_ex("empty_syringe_items",i,"","")
+	if ini_sys:section_exist(id) then
+		empty_syringe_items[id] = true
+	end
+end
+
+n = ini_device:line_count("power_consumption")
+for i=0,n-1 do
+	result, id, value = ini_device:r_line_ex("power_consumption",i,"","")
+	if ini_sys:section_exist(id) and value then
+		itms_device[id] = tonumber(value) or 0.00001
+	end
+end
+
+item_rewards = {}
+ini_reward:section_for_each(function(section)
+	if (not item_rewards[section]) then
+		item_rewards[section] = {}
+	end
+	
+	n = ini_reward:line_count(section)
+	for i=0,n-1 do
+		result, id, value = ini_reward:r_line_ex(section,i,"","")
+		if ini_sys:section_exist(id) then
+			item_rewards[section][id] = ini_sys:r_float_ex(id,"tier") or 1
+		end
+	end
+end)
+
+item_combine = {}
+n = ini_craft:line_count("item_combination")
+for i=0,n-1 do
+	result, id, value = ini_craft:r_line_ex("item_combination",i,"","")
+	if id and value then
+		local str = alun_utils.str_explode(id,":")
+		if str[1] and str[2] and ini_sys:section_exist(str[1]) and ini_sys:section_exist(str[2]) and ini_sys:section_exist(value) then
+			if (not item_combine[str[1]]) then
+				item_combine[str[1]] = {}
+			end
+			item_combine[str[1]][str[2]] = value
+		else
+			printf("! ERROR item_combination | wrong section names")
+		end
+	end
+end
+
+--Backpack stash mod
+local BackPackStashEnable = ini_backpack:r_bool_ex("backpack_stash","enable",false)
+local BackPackStashAllowInBase = BackPackStashEnable and ini_backpack:r_bool_ex("backpack_stash","allow_in_base",false)
+local BackPackStashSpot = BackPackStashEnable and ini_backpack:r_string_ex("backpack_stash","map_spot") or "treasure" 
+local BackPackStashEnableTip = BackPackStashEnable and ini_backpack:r_bool_ex("backpack_stash","enable_news_tip",false)
+local BackPackStashEnableUi = BackPackStashEnable and ini_backpack:r_bool_ex("backpack_stash","enable_ui",false)
+
+-- Loot Mutant
+local MutantLootDecayTime = ini_mutant:r_float_ex("mutant_loot_mod","decay_time") or 7200
+
+-- Static Message
+ShowMessage = nil
+ShowMessageInit = nil
+ShowMessageTime = nil
+
+TorchType = 0
+local torch_delay
+local actor_fill_backpack
+local clsid_to_section = {
+	[clsid.bloodsucker_s] 	= "bloodsucker",
+	[clsid.boar_s] 			= "boar",
+	[clsid.burer_s] 		= "burer",
+	[clsid.chimera_s]		= "chimera",
+	[clsid.controller_s]	= "controller",
+	[clsid.dog_s]			= "dog",
+	[clsid.flesh_s]			= "flesh",
+	[clsid.gigant_s]		= "gigant",
+	[clsid.poltergeist_s]	= "poltergeist",
+	[clsid.psy_dog_s]		= "psy_dog",
+	[clsid.psy_dog_phantom_s] = "psy_dog",
+	[clsid.pseudodog_s]		= "pseudodog",
+	[clsid.snork_s]			= "snork",
+	[clsid.tushkano_s]		= "tushkano",
+	[clsid.cat_s]			= "cat",
+	[clsid.fracture_s]		= "fracture",
+	[clsid.zombie_s]		= "zombie",
+	[clsid.crow]			= "crow",
+	[clsid.rat_s]			= "rat"
+}
+local clsdbg_to_section = {
+		["SM_KARLIK"] 	 = "karlik",
+		["SM_PSYSUCKER"] = "psysucker",
+		["SM_LURKER"] 	 = "lurker"
+}
+
+-- UI instances, to avoid crashes caused by garbage collector destroying XML classes
+local ui_ref_recipe
+local ui_ref_con
+local ui_ref_repair
+local ui_ref_cook
+local ui_ref_map
+
+
+-------------------------------
+-- CALLBACKS
+-------------------------------
+function on_game_start()
+	RegisterScriptCallback("on_before_item_use",on_before_item_use)
+	RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
+	RegisterScriptCallback("actor_on_item_drop",actor_on_item_drop)
+	RegisterScriptCallback("actor_on_item_use",actor_on_item_use)
+	RegisterScriptCallback("actor_on_item_take",actor_on_item_take)
+	RegisterScriptCallback("monster_on_actor_use_callback",monster_on_actor_use_callback)
+	RegisterScriptCallback("CUIActorMenu_OnItemDropped",on_item_drag_dropped)
+	RegisterScriptCallback("CUIActorMenu_OnItemFocusReceive",on_item_focus)
+	RegisterScriptCallback("save_state",save_state)
+end
+
+local old_booster = {}
+local boost_min = 0.00005
+local booster_string = {
+	["pwr"] = "ui_inv_power",
+	["psy"] = "ui_inv_outfit_telepatic_protection",
+	["bld"] = "ui_inv_bleeding",
+	["hp"] = "ui_inv_health",
+	["rad"] = "ui_inv_radiation",
+}
+function on_before_item_use(obj,flags)
+	local sec = obj:section()
+	
+	-- no need to check for tools
+	if itms_tools[sec] then
+		--printf("- on_before_item_use [%s] | ignore utility item", sec)
+		flags.ret_value = true
+		return
+	end
+	
+	local curr_booster = {}
+	local time_g = time_global()
+	local str = ""
+	local pass = true
+	
+	-- read important boosts
+	local period		= ini_sys:r_float_ex(sec, "boost_time") or 0
+	local rad_boost 	= ini_sys:r_float_ex(sec, "boost_radiation_restore") or 0
+	local psy_boost 	= ini_sys:r_float_ex(sec, "boost_telepat_protection") or 0
+	local bld_boost 	= ini_sys:r_float_ex(sec, "boost_bleeding_restore") or 0
+	local hp_boost 		= ini_sys:r_float_ex(sec, "boost_health_restore") or 0
+	local pwr_boost 	= ini_sys:r_float_ex(sec, "boost_power_restore") or 0
+	
+	-- if an item is required
+	local require_tool = ini_sys:r_string_ex(sec, "required_tool")
+	local obj_tool = require_tool and ini_sys:section_exist(require_tool) and db.actor:object(require_tool)
+	
+	-- store boosts in a table	
+	curr_booster["section"]   = sec
+	curr_booster["period"]	  = (period > 0) and (time_g + period*1000) or time_g
+	curr_booster["pwr"]     = (pwr_boost > boost_min) and pwr_boost or 0
+	curr_booster["psy"]   = (psy_boost > boost_min) and psy_boost or 0
+	curr_booster["bld"]  = (bld_boost > boost_min) and bld_boost or 0
+	curr_booster["hp"]    = (hp_boost > boost_min) and hp_boost or 0
+	curr_booster["rad"] = (rad_boost > boost_min) and rad_boost or 0
+	
+	-- A required tool is missing -> no eat
+	if require_tool and (not obj_tool) then
+		--printf("~ on_before_item_use [%s] | require_tool [%s] is missing", sec, require_tool)
+		str = strformat(game.translate_string("st_itm_manager_missing_requirements"), ui_item.get_sec_name(require_tool))
+		pass = false
+	
+	-- older booster is still active
+	elseif old_booster["period"] and (old_booster["period"] > time_g) then
+		--printf("~ on_before_item_use [%s] | older booster [%s] is still active", sec, old_booster['section'])
+		local weaker_effect
+		local stronger_effect
+		for k,v in pairs(curr_booster) do
+			if (k ~= "section") and (k ~= "period") then
+				local v2 = old_booster[k]
+				if v2  and (v > boost_min) and (v2 > boost_min) then
+					if (v <= v2) then
+						weaker_effect = k
+					else
+						stronger_effect = k
+					end
+				elseif (v2 == 0) and (v > boost_min) then
+					stronger_effect = k
+				end
+			end
+		end
+		
+		-- older booster has some stronger effect, while new one doesn't have any stronger effect
+		if weaker_effect and (not stronger_effect) then
+			--printf("~ on_before_item_use [%s] | older booster [%s] has stronger effect: %s", sec, old_booster['section'], weaker_effect)
+			local boost_str = game.translate_string(booster_string[weaker_effect])
+			str = strformat(game.translate_string("st_itm_manager_greater_effect"),boost_str)
+			pass = false
+		end
+	end
+	
+	-- to eat or not to eat
+	if pass then
+		--printf("- on_before_item_use [%s] | pass = true", sec)
+		flags.ret_value = true
+		copy_table(old_booster, curr_booster)
+		if obj_tool then
+			discharge(obj_tool)
+		end
+	else
+		--printf("! on_before_item_use [%s] | pass = false", sec)
+		flags.ret_value = false
+		--txr_utils.release_obj(obj)
+		--txr_utils.create_inv_obj(sec)
+		
+		txr_utils.hide_menu()
+		SetHudMsg(str,3)
+	end
+end
+
+function actor_on_first_update()
+
+	-- Delete base pda
+	local sim = alife()
+	local obj, se_obj
+	--[[
+	for i=1,65534 do
+		se_obj = sim:object(i)
+		if se_obj and (se_obj:section_name() == "device_pda") then
+			sim:release(se_obj,true)
+		end
+	end
+	--]]
+	
+	-- Delete animation items on actor
+	for sec,_ in pairs(itms_release) do
+		obj = db.actor:object(sec)
+		se_obj = obj and obj:id() and alife_object(obj:id())
+		if (se_obj) then
+			sim:release(se_obj,true)
+		end
+	end
+	
+	-- Spawn bolts
+	local m_data = alife_storage_manager.get_state()
+	local bolt_first = m_data.bolt_first
+	if bolt_first then
+		sim:create(bolt_first, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+		m_data.bolt_first = nil
+	end
+	
+	local bolt_slot = m_data.bolt_slot
+	if bolt_slot then
+		sim:create(bolt_slot, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+	end
+	
+	local bolts = m_data.bolts
+	if bolts then
+		for sec,cnt in pairs(bolts) do
+			for i=1,cnt do
+				sim:create(sec, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+			end
+		end
+	end
+	
+	-- Damage equipment
+	if (not has_alife_info("start_equippment_handled")) and (level.name() ~= "fake_start") then
+		CreateTimeEvent(0,"delay_new_game_autosave",4,new_game_equippment)
+	end
+	
+	-- Bolt manager
+	CreateTimeEvent("cycle","bolt_manager",60,bolt_manager)
+end
+
+function actor_on_item_drop(obj) -- bind_stalker on_item_drop
+	if not (obj) then
+		return
+	end
+	
+	if (db.actor:has_info("actor_made_wish_for_riches")) then 
+		db.actor:transfer_item(obj,db.actor)
+	end
+end
+
+function monster_on_actor_use_callback(obj,who) -- Open mutant loot UI
+
+	local looted = utils.se_obj_load_var(obj:id(),obj:name(),"looted")
+	if (looted) then
+		return
+	end
+
+	if (obj:clsid() == clsid.crow) then
+		utils.save_var(obj, "looted", true)
+	else
+		utils.se_obj_save_var(obj:id(),obj:name(),"looted",true)
+	end
+
+	xr_corpse_detection.set_valuable_loot(obj:id(),false)
+
+	local st = db.storage[obj:id()]
+	if (st and st.death_time and game.get_game_time():diffSec(st.death_time) > MutantLootDecayTime) then
+		SetHudMsg(game.translate_string("st_body_decayed"),4)
+	else
+		local hud = get_hud()
+		if (hud) then
+			ui_mutant_loot.loot_ui(hud,obj,obj:id(),obj:section(),obj:clsid())
+		end
+	end
+end
+
+function actor_on_item_use(obj) -- bind_stalker on_item_use
+	if (db.actor:has_info("actor_made_wish_for_riches")) then
+		return 
+	end
+	
+	local sec = obj:section()
+	
+	
+	-- Strelok Notes
+	if (sec == "mlr_strelok_item_01") then
+		txr_routes.open_route("val","x18")
+		return
+		
+	-- Tools
+	elseif itms_repair[sec] or itms_map[sec] or itms_cook[sec] then
+		use_tool(obj)
+
+	-- Deployable mgun
+	elseif (sec == "itm_deployable_mgun") then
+		use_deployable_mgun(obj)
+		return
+	
+	-- Watch
+	elseif (sec == "hand_watch") then
+		use_watch(obj)
+		return
+	
+	-- Chocolate Bar
+	elseif (sec == "chocolate") then
+		txr_utils.create_inv_obj("chocolate_p")
+		return
+		
+	-- Bolts pack
+	elseif (sec == "bolts_pack") then
+		local bolts = {}
+		local n = math.random(20,30)
+		for i=1,n do
+			local actor = db.actor
+			if math.random(1,100) > 50 then
+				bolts[#bolts + 1] = "bolt"
+			else
+				bolts[#bolts + 1] = "bolt_bullet"
+			end
+		end
+		txr_utils.delay_item("bolts_pack", false, 5, nil, bolts)
+		return
+		
+	-- give empty syringe on using some medical items
+	elseif empty_syringe_items[sec] then
+		txr_utils.create_inv_obj("e_syringe")
+	
+	-- weather radar
+	elseif (sec == "device_weather_radar") then
+		ui_debug_weather.activate()
+		return
+	end
+	
+	-- don't discharge items with no removal
+	if itms_multiuse_r[sec] then
+		local uses = obj:get_remaining_uses()
+		local max_uses = obj:get_max_uses()
+		if uses and max_uses and (uses < max_uses) then
+			obj:set_remaining_uses(uses + 1)
+		end
+	end
+end
+
+local str_itm_taken = game.translate_string("st_item_taken")
+function actor_on_item_take(obj) -- explosive item special
+	local sec = obj:section()
+	
+	-- Explosive barrels
+	if (sec == "explosive_mobiltank") or (sec == "explosive_tank") then
+		local se_obj = alife_object(obj:id())
+		local fuel = tostring(math.random(6,8))
+		if se_obj then
+			local sim = alife()
+			sim:release(se_obj,true)
+			local se_obj_new = sim:create("explo_jerrycan_fuel", db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+			if se_obj_new then
+				txr_condition.add_uses_to_process(se_obj_new.id,2)
+			end
+		end
+
+	-- Story special
+	elseif (sec == "main_story_1_quest_case") and (not has_alife_info("agr_u_bloodsucker_on_case")) then
+		db.actor:give_info_portion("agr_u_bloodsucker_on_case")
+		xr_effects.create_squad(nil,nil,{"agr_u_bloodsucker_3_squad","agr_u_bloodsucker"})
+	end
+	
+	-- Show notification
+	--local str = strformat(str_itm_taken, ui_item.get_sec_name(sec))
+	--SetHudMsg_2(str)
+end
+
+local function timer_dropdrop_ArtyContainer(arty, cont, arty_cond)
+	local cont_arty = txr_utils.collect_inv_obj(arty .. "_" .. cont , 0) or {}
+	for i=1,#cont_arty do
+		local cont_arty_o = level.object_by_id(cont_arty[i]:id())
+		if (cont_arty_o:condition() > 0.99) and arty_cond then
+			cont_arty_o:set_condition(arty_cond)
+			break
+		end
+	end
+	return true
+end
+function dropdrop_ArtyContainer(obj_1, obj_2, sec_1, sec_2) -- Put artefact in container
+	local delay = txr_actor_effects.is_animations_on() and 5 or 1
+	local cont = sec_2
+	local arty = sec_1
+	local arty_o = level.object_by_id(obj_1:id())
+	local arty_cond = arty_o:condition()
+	
+	if ini_sys:section_exist(arty .. "_" .. cont) then
+		txr_utils.create_inv_obj(arty .. "_" .. cont)
+		txr_utils.release_obj(obj_1)
+		txr_utils.release_obj(obj_2,0.07)
+		
+		txr_actor_effects.play_item_fx("container_tool_" .. cont .. "_dummy")
+			--level_weathers.get_weather_manager():forced_weather_change()
+		
+		-- Carrying artefact condition over the container
+		-- Funnily enough, the new added item in inventory don't register quickly? so a timer is necessary
+		CreateTimeEvent(0,"delay_container",delay, timer_dropdrop_ArtyContainer, arty, cont, arty_cond)
+		--
+	end
+end
+function dropdrop_AmmoInjection(obj_1, obj_2, sec_1, sec_2) -- Ammo injection
+	-- Gather weapon's ammo list
+	local ammo_list = txr_utils.get_weapon_ammo_list(obj_2,true)
+	if (not ammo_list[sec_1]) then
+		return
+	end
+	
+	-- Gather ammo box count and full size
+	local ammo_list_n = txr_utils.get_weapon_ammo_list(obj_2)
+	local ammo_count = obj_1:ammo_get_count()
+	--local ammo_box_size = obj_1:ammo_box_size()
+
+	-- Gather weapon info
+	local wpn_ammo_type = obj_2:get_ammo_type()
+	local wpn_ammo_sec = ammo_list_n[wpn_ammo_type + 1]
+	local wpn_ammo_elapsed = obj_2:get_ammo_in_magazine()
+	local wpn_ammo_mag_size = ini_sys:r_u32(sec_2, "ammo_mag_size")
+	local wpn_one_shot = (ini_sys:r_string_ex(sec_2, "tri_state_reload") == "on") or (ini_sys:r_string_ex(sec_2, "class") == "WP_BM16")
+
+	-- If the ammo type is different from new ammo box -> throw weapon's ammo in inventory + change weapon's ammo type
+	local is_ammo_same = (wpn_ammo_sec == sec_1)
+	if (not is_ammo_same) then
+
+		if (wpn_ammo_elapsed > 0) then
+			create_ammo(wpn_ammo_sec, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID, wpn_ammo_elapsed)
+			obj_2:unload_magazine()
+			wpn_ammo_elapsed = 0
+		end
+		
+		for i=1,#ammo_list_n do
+			if (ammo_list_n[i] == sec_1) then
+				local wpn_ammo_new_type = (i - 1)
+				obj_2:set_ammo_type(wpn_ammo_new_type)
+				break
+			end
+		end
+	end
+
+	local ammo_to_wpn = wpn_ammo_mag_size - wpn_ammo_elapsed
+	if (wpn_one_shot) then 
+		ammo_to_wpn = utils.clamp(ammo_to_wpn,0,1)
+	end
+
+	local ammo_from_box = utils.clamp(ammo_to_wpn,0,ammo_count)
+	if (ammo_from_box > 0) then
+
+		-- Adjust ammo box size that got taken from
+		if (ammo_count > ammo_from_box) then
+			obj_1:ammo_set_count(ammo_count - ammo_from_box)
+		else
+			local se_obj_1 = alife_object(obj_1:id())
+			if se_obj_1 then
+				alife():release(se_obj_1, true)
+			end
+		end
+
+		-- Set the ammo size added to weapon
+		obj_2:set_ammo_elapsed(wpn_ammo_elapsed + ammo_from_box)
+		local prev_state = obj_2:get_state()
+
+		-- Play reload effect
+		if wpn_one_shot then
+			xr_sound.set_sound_play(AC_ID,"reload_shell")
+			level.add_cam_effector("camera_effects\\switch\\low" .. math.random(1,4) .. ".anm", 23239, false,'')
+		else
+			txr_actor_effects.play_item_fx("reload_weapon_fast")
+			local snd_reload = ini_sys:r_string_ex(sec_2,"snd_reload")
+			txr_utils.play_sound(snd_reload)
+		end
+	end
+end
+function dropdrop_Multi_Combination(obj_1, obj_2, sec_1, sec_2) -- Combine multi-use items
+	if not ((sec_1 == sec_2) and is_multi_use(nil,sec_1)) then
+		return
+	end
+	
+	local uses_1 = obj_1:get_remaining_uses()
+	local uses_2 = obj_2:get_remaining_uses()
+	local max_uses = obj_1:get_max_uses() -- 2 items, 1 section and max uses
+
+	if not (uses_1 and uses_2 and max_uses) then
+		return
+	end
+
+	local new_uses = uses_1 + uses_2
+	if (new_uses > max_uses) then
+		return
+	end
+	
+	local id_1 = obj_1:id()
+	local id_2 = obj_2:id()
+	local id_3
+	
+	if (id_1 == id_2) then
+		--[[
+		local function search(temp, item)
+			if (item:section() == sec_1) and (item:id() ~= id_2) then
+				id_3 = item:id()
+				return
+			end
+		end
+		db.actor:iterate_inventory(search, nil)
+		--]]
+	else
+		id_3 = id_1
+	end
+	
+	if id_3 then
+		local se_obj_3 = alife_object(id_3)
+		if se_obj_3 then
+			alife():release(se_obj_3,true)
+			obj_2:set_remaining_uses(new_uses)
+			txr_sounds.actor_on_item_take(obj_2) -- play sound
+			printdbg("/ Combined two [%s] items | uses_from: (%s) [%s] - uses_to: (%s) [%s] - new_uses: [%s]", sec_2, id_3, uses_1, id_2, uses_2, new_uses)
+		end
+	end
+end
+function dropdrop_Basic_Combination(obj_1, obj_2, sec_1, sec_2) -- Combine basic items
+	local sec_new = item_combine[sec_1][sec_2]
+	txr_actor_effects.play_item_fx("item_combination")
+	txr_utils.create_inv_obj(sec_new)
+	txr_utils.release_obj(obj_1)
+	txr_utils.release_obj(obj_2)
+end
+function on_item_drag_dropped(obj_1, obj_2, slot_from, slot_to)
+
+	-- Check capability
+	if not (slot_from == EDDListType.iActorBag and slot_to == EDDListType.iActorBag) then
+        return
+    end
+	
+	local sec_1 = obj_1:section()
+	local sec_2 = obj_2:section()
+	
+	if itms_arty_container[sec_2] then
+		if (ini_sys:r_string_ex(sec_1,"class") == "ARTEFACT") or (ini_sys:r_string_ex(sec_1,"class") == "SCRPTART") then
+			dropdrop_ArtyContainer(obj_1, obj_2, sec_1, sec_2)
+		end
+		
+	elseif itms_disassemble[sec_1] and itms_disassembly.ui_menu(obj_2) then -- Disassemble
+		itms_disassembly.tool_action(obj_2, obj_1)
+		
+	elseif IsWeapon(obj_2) and is_ammo(nil,sec_1) then
+		--dropdrop_AmmoInjection(obj_1, obj_2, sec_1, sec_2)
+		
+	elseif item_combine[sec_1] and item_combine[sec_1][sec_2] then
+		dropdrop_Basic_Combination(obj_1, obj_2, sec_1, sec_2)
+		
+	else 
+		dropdrop_Multi_Combination(obj_1, obj_2, sec_1, sec_2)
+	end
+end
+
+local focus_last_sec
+local focus_tbl = {}
+local focus_upgr = {}
+function on_item_focus(obj) -- highlight compatible items
+	local parent = obj:parent()
+	if not (parent and parent:id() == AC_ID) then 
+		return 
+	end
+	
+	local sec_focus = obj:section()
+	if (focus_last_sec ~= sec_focus) then
+		focus_last_sec = sec_focus
+		empty_table(focus_tbl)
+		
+		local parent_sec = ini_sys:r_string_ex(sec_focus,"parent_section") or sec_focus
+		
+		-- Scopes
+		local scopes_str = ini_sys:r_string_ex(parent_sec,"scopes")
+		local scopes = scopes_str and (scopes_str ~= "") and alun_utils.str_explode(scopes_str,",")
+		if scopes then
+			for i=1,#scopes do
+				focus_tbl[#focus_tbl + 1] = scopes[i]
+			end
+		end
+		
+		-- Parts
+		local parts_str = ini_parts:r_string_ex("con_parts_list",parent_sec)
+		local parts = parts_str and (parts_str ~= "") and alun_utils.str_explode(parts_str,",")
+		if parts then
+			for i=1,#parts do
+				focus_tbl[#focus_tbl + 1] = parts[i]
+			end
+		end
+		
+		-- Repair kits
+		local repair_type = ini_sys:r_string_ex(parent_sec,"repair_type")
+		if repair_type and repair_type ~= "" then
+			for kit,v in pairs(itms_repair) do
+				if v[repair_type] then
+					focus_tbl[#focus_tbl + 1] = kit
+				end
+			end
+			--[[
+			for kit,v in pairs(itms_workshop_tools) do
+				if v[repair_type] then
+					focus_tbl[#focus_tbl + 1] = kit
+				end
+			end
+			--]]
+		end
+		
+		-- Upgrade parts
+		local upgr_str = ini_sys:r_string_ex(parent_sec,"upgrades")
+		if upgr_str and upgr_str ~= "" then
+			if (not focus_upgr[parent_sec]) then
+				local upgr = txr_utils.extract_var(ini_sys,parent_sec,"upgrades",1)
+				focus_upgr[parent_sec] = {}
+				for i=1,#upgr do
+					txr_utils.extract_upgr_tools(focus_upgr[parent_sec], upgr[i])
+				end
+			end
+			for tool,_ in pairs(focus_upgr[parent_sec]) do
+				--printf("- upgrade part for [%s] -> [%s]", parent_sec, tool)
+				focus_tbl[#focus_tbl + 1] = tool
+			end
+		end
+		
+	end
+	
+	local inventory = ActorMenu.get_actor_menu()
+	if not ((#focus_tbl > 0) or (inventory and inventory:IsShown())) then return end
+	for i=1,#focus_tbl do 
+		inventory:highlight_section_in_slot(focus_tbl[i],EDDListType.iActorBag)
+	end
+end
+
+function save_state(m_data) --// NOTE: bolts aren't saved in alife, so this is a temp solution
+	local bolts = {}
+	local function itr(obj)
+		local sec = obj:section()
+		if (sec == "bolt") or (sec == "bolt_bullet") then
+			if (not bolts[sec]) then
+				bolts[sec] = 0
+			end
+			bolts[sec] = bolts[sec] + 1
+		end
+		return false
+	end
+	db.actor:inventory_for_each(itr)
+	
+	m_data.bolts = bolts
+	m_data.bolt_slot = db.actor:item_in_slot(6) and db.actor:item_in_slot(6):section() or nil
+end
+
+
+-------------------------------
+-- ITEM OPTIONS (MENU)
+-------------------------------
+function menu_use(itm) -- return "Use" name
+	local p = itm:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	return game.translate_string("st_item_use")
+end
+
+function menu_reveal(itm) -- return "Reveal" name
+	local p = itm:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	return game.translate_string("st_item_reveal")
+end
+
+function menu_charge(itm) -- return "Charge" name
+	local p = itm:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	--if (not battery_tools[itm:section()]) then return end
+	
+	return game.translate_string("st_item_charge")
+end
+
+function menu_read(itm) -- return "Read" name
+	local p = itm:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	return game.translate_string("st_item_read")
+end
+
+function menu_open(itm) -- return "Open" name
+	local p = itm:parent()
+	if not (p and p:id() == AC_ID) then return end
+	if itms_arty_container[itm:section()] then return end -- default containers
+	
+	return game.translate_string("st_item_open")
+end
+
+function menu_sort(itm) -- return "Sort" name
+	local p = itm:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	return game.translate_string("st_item_sort")
+end
+
+function menu_play(itm) -- return "Play" name
+	local p = itm:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	return game.translate_string("st_item_play")
+end
+
+function menu_separate(obj) -- return "Separate" name
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	if (not is_multi_use(obj)) then return end
+	
+	local uses = obj:get_remaining_uses()
+	if not (uses and (uses > 1)) then return end
+
+	return game.translate_string("st_item_separate")
+end
+
+function menu_details(obj)  -- return "Details" name
+	--local p = obj:parent()
+	--if not (p and p:id() == AC_ID) then return end
+	
+	return game.translate_string("st_item_details")
+end
+
+function menu_place(obj)  -- return "Place" name
+	return game.translate_string("st_item_place")
+end
+
+function menu_release(itm) -- Debug mode only
+	if (not DEV_DEBUG_DEV) then
+		return
+	end
+	
+	local p = itm:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	return ("release (" .. itm:name() .. ")")
+end
+
+-------------------------------
+-- ITEM OPTIONS (FUNCTOR)
+-------------------------------
+function use_tool(obj) -- use item
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then
+		return
+	end
+	
+	local section = obj:section()
+	
+	local hud = get_hud()
+	if (hud) then
+		hud:HideActorMenu()
+	end
+	
+	-- Repair tools
+	if itms_repair[section] then
+		ui_ref_repair = ui_itm_repair and ui_itm_repair.repair_ui(hud,obj,section)
+		if (ui_ref_repair) then
+			ui_ref_repair:ShowDialog(true)
+		end	
+	end
+	
+	-- Cooking tools
+	if itms_cook[section] then
+		ui_ref_cook = ui_itm_cooking and ui_itm_cooking.cook_ui(hud,obj,section)
+		if (ui_ref_cook) then
+			ui_ref_cook:ShowDialog(true)
+		end	
+	end
+	
+	-- Map kits
+	if 	itms_map[section] then
+		ui_ref_map = ui_itm_map and ui_itm_map.map_ui(hud,obj,section)
+		if (ui_ref_map) then
+			ui_ref_map:ShowDialog(true)
+		end	
+	end
+end
+
+function use_separate(obj) -- separate item
+	local sec = obj:section()
+	local uses = obj:get_remaining_uses()
+	
+	if uses and (uses > 1) then
+		local se_obj = alife():create(sec, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+		if se_obj then
+			obj:set_remaining_uses(uses - 1)
+			txr_condition.add_uses_to_process(se_obj.id, 1)
+			
+			-- Force bar updating
+			--db.actor:drop_item(obj)
+			db.actor:transfer_item(obj,db.actor)
+		end
+	end
+end
+
+function use_ammo_box(obj)
+	local max_ammo = math.random(1,5)
+	local ammo_list = {}
+	
+	local n = ini_manager:line_count("ammo_box_unpacked") or 0
+	for i=0, n-1 do
+		local result, id, value = ini_manager:r_line("ammo_box_unpacked" , i , "", "")
+		
+		if (tostring(id) == "size") and value then
+			local t = alun_utils.str_explode(value,",")
+			max_ammo = math.random(tonumber(t[1]) , tonumber(t[2])) or max_ammo
+		end
+		
+		if ini_sys:section_exist(tostring(id)) then
+			ammo_list[#ammo_list + 1] = tostring(id)
+		end
+	end
+	
+	for i = 1, max_ammo do
+		local ammo = ammo_list[math.random(#ammo_list)]
+		if (ammo) then		
+			create_ammo(ammo, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID, 1)
+		end
+	end
+	
+	if (math.random(100) < 50) then
+		txr_utils.create_inv_obj("ammo_bad")
+	end
+	
+	txr_utils.release_obj(obj)
+end
+
+function use_ammo_bad(obj)
+	local actor = db.actor
+	local count = math.random(2,3)
+	for i=1,count do
+		alife():create("bolt_bullet", db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+	end
+	txr_utils.play_sound("interface\\items\\inv_items_ammo_" .. tostring(math.random(1,3)))
+	txr_utils.release_obj(obj)
+end
+
+function use_medpack(obj)
+	local sec = obj:section() .. "_content"
+		
+	if (ini_manager:section_exist(sec)) then
+		local parts = {}
+		local n = ini_manager:line_count(sec) or 0
+		for i=0, n-1 do
+			local result, id, value = ini_manager:r_line(sec , i , "", "")
+			parts[#parts + 1] = id
+		end
+		txr_utils.delay_item(obj:section(), false, 5, obj, parts)
+	end
+end
+
+function use_deployable_mgun(obj)
+	local pos = vector():set(device().cam_pos)
+	pos:add(device().cam_dir:mul(3))
+	alife():create("deployable_mgun",pos,level.vertex_id(pos),db.actor:game_vertex_id())
+end
+
+function use_con_checker(obj)
+	local hud = get_hud()
+	--hud:HideActorMenu()
+	ui_ref_con = ui_con_checker and ui_con_checker.con_checker_ui(hud,obj:section())
+	if (ui_ref_con) then
+		ui_ref_con:ShowDialog(true)
+		ui_ref_con:FillList()
+	end
+end
+
+function use_recipe(obj)
+	local sec = obj:section()
+	if not itms_recipe[sec] then
+		return
+	end
+	
+	if (not dxr_encyclopedia.is_note_unlocked("encyclopedia__notes_" .. sec)) then
+		dxr_encyclopedia.detect_note_interaction(sec)
+		--txr_utils.release_obj(obj)
+	else
+		SetHudMsg(game.translate_string("st_recipe_is_known"),3)
+	end
+	
+	-- effect
+	local hud = get_hud()
+	if (hud) then
+		hud:HideActorMenu()
+	end
+	
+	ui_ref_recipe = ui_itm_recipe and ui_itm_recipe.recipe_ui(hud,sec)
+	if (ui_ref_recipe) then
+		ui_ref_recipe:ShowDialog(true)
+	end	
+	
+end
+
+function use_letter(obj)
+	local sec = obj:section()
+	if not itms_letter[sec] then
+		return
+	end
+	
+	if (not dxr_encyclopedia.is_note_unlocked("encyclopedia__notes_" .. sec)) then
+		dxr_encyclopedia.detect_note_interaction(sec)
+		txr_utils.release_obj(obj)
+	else
+		SetHudMsg(game.translate_string("st_letter_is_known"),3)
+	end
+	
+	-- effect
+	local hud = get_hud()
+	if (hud) then
+		hud:HideActorMenu()
+	end
+end
+
+function use_guitar(obj)
+	local n = math.random(28)
+	local snd = sound_object("music\\guitar_" .. tostring(n))
+	if (not snd) then return end
+	local period = snd:length()
+	snd:play_no_feedback(db.actor, sound_object.s2d, 0, VEC_ZERO, 1)
+	txr_actor_effects.play_continuous_effect(period)
+end
+
+function use_harmonica(obj)
+	local n = math.random(5)
+	local snd = sound_object("music\\harmonica_" .. tostring(n))
+	if (not snd) then return end
+	local period = snd:length()
+	snd:play_no_feedback(db.actor, sound_object.s2d, 0, VEC_ZERO, 1)
+	txr_actor_effects.play_continuous_effect(period)
+end
+
+local function timer_use_arty_container(break_arty, cond)
+	local arty = txr_utils.collect_inv_obj(break_arty , 0) or {}
+	for i=1,#arty do
+		local arty_o = level.object_by_id(arty[i]:id())
+		if (arty_o:condition() > 0.99) and cond then
+			arty_o:set_condition(cond)
+			break
+		end
+	end
+	return true
+end
+function use_arty_container(obj)
+	local delay = txr_actor_effects.is_animations_on() and 5 or 1
+	local break_con
+	local break_arty
+	local sec = obj:section()
+	local con_o = level.object_by_id(obj:id())
+	local cond = con_o:condition()
+	
+	if (string.find(sec, "(lead.-_box)",3)) then
+		break_con = "lead_box"
+		break_arty = sec:gsub("_lead_box", "")		
+	elseif (string.find(sec, "(af.-_iam)",3)) then
+		break_con = "af_iam"
+		break_arty = sec:gsub("_af_iam", "")
+	elseif (string.find(sec, "(af.-_aac)",3)) then
+		break_con = "af_aac"
+		break_arty = sec:gsub("_af_aac", "")
+	elseif (string.find(sec, "(af.-_aam)",3)) then
+		break_con = "af_aam"
+		break_arty = sec:gsub("_af_aam", "")
+	end
+	
+	if break_con and break_arty and ini_sys:section_exist(break_con) and ini_sys:section_exist(break_arty) then
+		txr_utils.create_inv_obj(break_con)
+		txr_utils.create_inv_obj(break_arty)
+		txr_utils.release_obj(obj)
+		
+		txr_actor_effects.play_item_fx(break_con .. "_dummy")
+			--level_weathers.get_weather_manager():forced_weather_change()
+		
+		-- Carrying container's condition over the artefact
+		-- Funnily enough, the new added item in inventory don't register quickly? so a timer is necessary
+		CreateTimeEvent(0,"delay_container",delay, timer_use_arty_container, break_arty, cond)
+		--
+	end
+end
+
+function use_watch(obj)
+	local Y, M, D, h, mint, sec, ms = game.get_game_time():get()
+	local pharse = game.translate_string("st_dyn_news_day_part_am")
+	if (h > 12) then
+		h = h - 12
+		pharse = game.translate_string("st_dyn_news_day_part_pm")
+	end
+	
+	txr_utils.hide_menu()
+	SetHudMsg(tostring(h) .. ":" .. tostring(mint) .. " " .. pharse , 3)
+end
+
+local details_ui_ref
+
+function use_details(obj)
+	--local p = obj:parent()
+	--if not (p and p:id() == AC_ID) then
+		--return
+	--end
+	
+	local sec = obj:section()
+	
+	--[[
+	local hud = get_hud()
+	if (hud) then
+		hud:HideActorMenu()
+	end
+	--]]
+	
+	details_ui_ref = ui_itm_details and ui_itm_details.details_ui(hud,obj,sec)
+	if (details_ui_ref) then
+		details_ui_ref:ShowDialog(true)
+	end	
+end
+
+function use_place(obj)
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then
+		return
+	end
+	
+	local section = obj:section()
+	local se_itm = alife_object(obj:id())
+	alife():release(se_itm,true)
+		
+	local pos = db.actor:position()
+	pos:add(device().cam_dir:mul(1.2))
+	pos.y = db.actor:position().y + 1
+	local lvid = db.actor:level_vertex_id()
+	local gvid = db.actor:game_vertex_id()
+	local se_obj = alife():create(section,pos,lvid,gvid)
+	
+	local rot = device().cam_dir:getH()
+	se_obj.angle = vector():set(0,rot,0)
+end
+
+function use_release(obj) -- return "Use" name
+	local se_obj = alife_object(obj:id())
+	if se_obj then
+		printf("~Released by actor: (%s)[%s]", obj:id(), obj:section())
+		alife():release(se_obj, true)
+	end
+end
+
+-------------------------------
+-- OTHERS
+-------------------------------
+function discharge(obj) -- Reducing the charge by 1
+	if (not obj) then return end
+
+	if is_multi_use(obj) then
+		local uses = obj:get_remaining_uses()
+		if uses and uses > 1 then
+			obj:set_remaining_uses(uses - 1)
+			return uses - 1
+		end
+	end
+		
+	local se_obj = alife_object(obj:id())
+	if se_obj then
+		alife():release(se_obj,true)
+	end
+	return 0
+end
+
+function degrade(obj, deg_val) -- lower object condition (object , degradation value)
+	if (not deg_val) or (deg_val and (deg_val <= 0)) then
+		return
+	end
+	
+	local sec = obj:section()
+	local con = obj:condition()
+	if (con <= deg_val) then
+		txr_utils.release_obj(obj)
+		--printf("-itms_manager | degrade | released item (%s) with condition (%s)",sec,con)
+	else
+		local new_con = con - deg_val
+		new_con = utils.clamp(new_con,0.01,0.99)
+		obj:set_condition(new_con)
+		--printf("-Disassemble | degrade | degrade item (%s) with condition (%s)",sec,con)
+	end
+end
+
+function can_degrade(obj, sec)
+	local section = obj and obj:section() or sec
+	return section and ini_sys:r_bool_ex(section,"use_condition") and (not is_multi_use(nil,section))
+end
+
+function ammo_aggregation(obj) -- Sort ammo boxes (called from txr_game_setup)
+	local size = obj:ammo_get_count()
+	local box_size = obj:ammo_box_size()
+	
+	if (size == box_size) then 
+		return 
+	end
+
+	local ammos = {}
+	local section = obj:section()
+	
+	db.actor:inventory_for_each(function (item)
+		-- collect ammos except this one; we use it for remainder
+		if (section == item:section() and item:id() ~= obj:id() and item:ammo_get_count() < box_size) then
+			ammos[#ammos+1] = item:id()
+			size = size + item:ammo_get_count()
+		end
+	end)
+	
+	-- didn't find any others
+	if (size == obj:ammo_get_count()) then 
+		return
+	end
+
+	local fill = math.floor(size/box_size)
+	local remainder = size - (box_size*fill)
+	if (remainder > 0) then 
+		obj:ammo_set_count(remainder)
+	else 
+		ammos[#ammos+1] = obj:id()
+	end
+	
+	local sim = alife()
+	for i=1,#ammos do 
+		local item = level.object_by_id(ammos[i])
+		if (item) then
+			if (fill > 0) then
+				item:ammo_set_count(box_size)
+				fill = fill - 1
+			else
+				db.actor:drop_item(item)
+				local se_obj = sim:object(ammos[i])
+				if (se_obj) then
+					--printf("release %s",se_obj:name())
+					sim:release(se_obj)
+				end
+			end
+		end
+	end
+end
+
+function actor_on_trade(obj,sell_bye,money) -- bind_stalker on_trade
+
+end
+
+function actor_item_take(obj) -- bind_stalker on_item_take
+
+end
+
+function npc_on_item_take_from_box(npc,box,item)
+
+end
+
+function loot_mutant(sec,clsid,t,npc,dont_create) -- Prepare mutant loot
+	-- if not (db.actor) then 
+	-- 	return 
+	-- end 
+	
+	npc = npc or db.actor
+	local clsid = clsid or obj and obj:clsid()
+	local kind = sec and ini_sys:r_string_ex(sec,"kind") or "unknown"
+	if not (clsid) then
+		return
+	end
+
+	local mut = clsdbg_to_section[kind] or clsid_to_section[clsid]
+	local loot_table = alun_utils.collect_section(ini_mutant,mut)
+
+	local loot
+	for i=1,#loot_table do
+		loot = alun_utils.str_explode(loot_table[i],",")
+		if (loot and loot[1] and loot[2]) then
+			if not (loot[3]) then
+				loot[3] = 1
+			end
+			
+			loot[2] = tonumber(loot[2])
+			for i=1,loot[2] do
+				if (math.random() <= tonumber(loot[3])) then
+					--printf("loot_mutant: section=%s",loot[1])
+					local section, uses = txr_utils.get_defined_uses(loot[1])
+					loot[1] = section
+						
+					local se_obj
+					if not dont_create then
+						se_obj = alife():create(loot[1], npc:position(), npc:level_vertex_id(), npc:game_vertex_id(), npc:id())
+						if se_obj and uses then
+							txr_condition.add_uses_to_process(se_obj.id, uses)
+						end
+					end
+					if (t) then
+						local item_section = loot[1]
+						if not (t[item_section]) then
+							t[item_section] = {}
+						end
+						t[item_section].count = t[item_section].count and t[item_section].count + 1 or 1
+						if se_obj then t[item_section][t[item_section].count] = se_obj.id end
+						--printf("loot_mutant")
+
+						if npc and npc:id() ~= AC_ID then
+							se_obj = alife():create(loot[1], npc:position(), npc:level_vertex_id(), npc:game_vertex_id(), npc:id())
+							if se_obj and uses then
+								txr_condition.add_uses_to_process(se_obj.id, uses)
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	
+	-- Unlock relevant mutant article in guide.
+	if npc and (npc:id() == AC_ID) then
+		dxr_encyclopedia.detect_mutant_interaction(mut)
+	end
+end
+
+function new_game_equippment()
+	-- Damage equipment
+	local function damage_items(actor,itm)
+		if (IsWeapon(itm) and (itm:section() ~= "wpn_binoc_inv")) or IsOutfit(itm) or IsHeadgear(itm) or itms_manager.is_device(itm) then
+			itm:set_condition(math.random(75,85)/100)
+		end
+	end
+	db.actor:iterate_inventory(damage_items,db.actor)
+	
+	give_info("start_equippment_handled")
+	
+	-- Override autosave
+	get_console():execute("save " .. user_name() .. " - autosave")
+	printf("- Autosaved new game")
+	
+	-- Override ammo type if required
+	local start_wpn_tbl = alife_storage_manager.get_state().start_wpn_ammo
+	if start_wpn_tbl then
+		for id, ammo_sec in pairs(start_wpn_tbl) do
+			local wpn = level.object_by_id(id)
+			if wpn then
+				local ammo_list = txr_utils.get_weapon_ammo_list(wpn)
+				local ammo_type
+				for i=1,#ammo_list do
+					if (ammo_list[i] == ammo_sec) then
+						ammo_type = i-1
+						break
+					end
+				end
+				if ammo_type then
+					local wpn_ammo_mag_size = ini_sys:r_u32(wpn:section(), "ammo_mag_size")
+					if wpn_ammo_mag_size then
+						wpn:unload_magazine()
+						wpn:set_ammo_type(ammo_type)
+						wpn:set_ammo_elapsed(wpn_ammo_mag_size )
+						printdbg("- New game weapon | [%s] - ammo type used: %s", wpn:section(), ammo_type)
+					end
+				end
+			end
+		end
+	end
+	
+	return true
+end
+
+
+function bolt_manager() -- limit bolt count in actor inventory
+	ResetTimeEvent("cycle","bolt_manager",60)
+	
+	local sim = alife()
+	local bolt_max_num = ini_manager:r_float_ex("settings","bolt_max_num") or 99
+	local id_belt = db.actor:item_in_slot(6) and db.actor:item_in_slot(6):id() or nil
+	local cnt = 0
+	local id, sec, se_obj
+	
+	local function itr(temp, obj)
+		sec = obj:section()
+		if (sec == "bolt") or (sec == "bolt_bullet") then
+			cnt = cnt + 1
+			if (cnt > bolt_max_num) then
+				id = obj:id()
+				se_obj = sim:object(id)
+				if se_obj and (id ~= id_belt) then
+					sim:release(se_obj,true)
+				end
+			end
+		end
+	end
+	db.actor:iterate_inventory(itr, nil)
+	
+	return false
+end
+
+function give_item_reward(num_of_items)
+	num_of_items = num_of_items or 1
+	local prior = {
+		["health"] = 2,
+		["rad"] = 2,
+		["drink"] = 2,
+		["food"] = 2,
+		["ammo"] = 2,
+		["battery"] = 0,
+	}
+	
+	local tot_power,tot_devices = 0,0
+	local ammo_suitable = {}
+	local ammo_avail = {}
+	local function itr(obj)
+		local sec = obj:section()
+		
+		-- Evaluate medkits
+		if item_rewards["items_health"][sec] then
+			prior["health"] = prior["health"] - 1
+		end
+		
+		-- Evaluate anti-rads
+		if item_rewards["items_rad"][sec] then
+			prior["rad"] = prior["rad"] - 1
+		end
+		
+		-- Evaluate drink
+		if item_rewards["items_drink"][sec] then
+			prior["drink"] = prior["drink"] - 1
+		end
+		
+		-- Evaluate food
+		if item_rewards["items_food"][sec] then
+			prior["food"] = prior["food"] - 1
+		end
+		
+		-- Evaluate devices power
+		if itms_device[sec] then
+			tot_devices = tot_devices + 1
+			tot_power = tot_power + (obj:condition() * 100)
+		end
+		
+		-- Evaluate weapons and ammo
+		if (sec ~= "wpn_binoc") and IsWeapon(obj) and (not IsMelee(obj)) then
+			local ammo = txr_utils.get_weapon_ammo_list(obj)
+			if ammo and #ammo > 1 then
+				for i=1,#ammo do
+					local sec_ammo = ammo[i]
+					if item_rewards["items_ammo"][sec_ammo] then
+						ammo_suitable[sec_ammo] = true
+					end
+				end
+			end
+		end
+		
+		if itms_ammo[sec] then
+			ammo_avail[sec] = { cnt = obj:ammo_get_count() , box = itms_ammo[sec] }
+			--printf("ammo_avail[%s] = { cnt = %s | box = %s", sec, ammo_avail[sec].cnt, ammo_avail[sec].box)
+		end
+		
+		return false
+	end
+	db.actor:inventory_for_each(itr)
+	
+	-- Total power of devices is less than %50 -> need battery
+	if (tot_power < (50 * tot_devices)) then 
+		prior["battery"] = 1
+	end
+	
+	-- No enough ammo found for existing weapons -> need ammo
+	for sec,_ in pairs(ammo_suitable) do
+		local ammo = ammo_avail[sec]
+		if ammo and (ammo.cnt >= ammo.box) then
+			prior["ammo"] = prior["ammo"] - 1
+		end
+	end
+	
+	--[[
+	for k,p in pairs(prior) do
+		printf("- Prior[%s] = %s",k,p)
+	end
+	--]]
+	
+	-- Give actor items
+	for i=1,num_of_items do
+	
+		-- Search from higher to lower priority
+		local picker = {}
+		local pick_prior
+		local functor = function(t,a,b) return t[a] > t[b] end
+		for k,p in spairs(prior,functor) do
+			if (p > 0) then
+				if (not pick_prior) or (pick_prior == p) then
+					pick_prior = p
+					picker[#picker + 1] = k
+				end
+			end
+		end
+		
+		if pick_prior and (#picker > 0) then
+		
+			-- Pick random type of this priority
+			local item_reward
+			local k = picker[math.random(#picker)]
+			
+			-- Pick random item
+			if k == "health" then
+				item_reward = random_key_table(item_rewards["items_health"])	
+			elseif k == "rad" then
+				item_reward = random_key_table(item_rewards["items_rad"])
+			elseif k == "drink" then
+				item_reward = random_key_table(item_rewards["items_drink"])
+			elseif k == "food" then
+				item_reward = random_key_table(item_rewards["items_food"])
+			elseif k == "battery" then
+				item_reward = itm_battery
+			elseif k == "ammo" then
+				item_reward = random_key_table(ammo_suitable)
+			end
+			
+			if item_reward then
+			
+				-- Reduce priority
+				prior[k] = prior[k] - 1
+				local amount = 1
+				
+				-- Give items
+				if itms_ammo[item_reward] then
+					local box_size = itms_ammo[item_reward]
+					if box_size then
+						create_ammo(item_reward, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID, box_size)
+					end
+				else
+					local se_obj = alife():create(item_reward, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+					if se_obj and itms_multiuse[item_reward] then
+						local uses = (itms_multiuse[item_reward] >= 2) and 2 or 1
+						amount = math.random(1,uses)
+						txr_condition.add_uses_to_process(se_obj.id, amount)
+					end
+				end
+				
+				-- Send news
+				news_manager.relocate_item(db.actor, "in", item_reward, amount)
+			end
+			break
+		end
+	end
+end
+
+function send_itm_msg(sec)
+	local str = strformat(game.translate_string("st_item_taken"), ui_item.get_sec_name(sec))
+	SetHudMsg_2(str)
+end
+
+
+-------------------------------
+-- MULTI-USE ITEMS
+-------------------------------
+function collect_avail_item_uses(npc, section)
+	if not (npc and ini_sys:section_exist(section)) then
+		printf("! ERROR: collect_item_obj | item section[%s] doesn't exist!", section)
+	end
+	
+	local t = {} -- [id] = uses
+	local is_multi = is_multi_use(nil,section)
+	local function itr(temp, obj)
+		--printf("~collect_avail_item_uses | checked [%s]", obj:section())
+		if (obj:section() == section) then
+			t[obj:id()] = is_multi and obj:get_remaining_uses() or 1
+			--printf("-collect_avail_item_uses | found needed section [%s]", section)
+		end
+	end
+	npc:iterate_inventory(itr, nil)
+	
+	return t
+end
+
+function get_avail_item_uses(section)
+	
+	local avail_uses = 0
+	local is_multi = is_multi_use(nil,section)
+	local function itr(temp, obj)
+		if (obj:section() == section) then
+			--printf("/ get_avail_item_uses | found uses | sec: %s - uses: %s", sec_i, uses_i)
+			avail_uses = avail_uses + (is_multi and obj:get_remaining_uses() or 1)
+		end
+	end
+	db.actor:iterate_inventory(itr, nil)
+	
+	return avail_uses
+end
+
+function get_item_remaining_uses(obj)
+	return obj and is_multi_use(obj,nil) and obj:get_remaining_uses() or 1
+end
+
+-- itms_manager.relocate_item
+function relocate_item_to_actor(actor, npc, section, amount)
+	if (not actor) then 
+		return
+	end
+	
+	amount = amount or 1
+	local npc_inv = npc and (not itms_anim[section]) and collect_avail_item_uses(npc, section) or {}
+	local sim = alife()
+	local cnt = amount
+	local max_uses = is_multi_use(nil,section) or 1
+	
+	while cnt > 0 do
+		-- Create or transfer object from npc
+		local id
+		if size_table(npc_inv) > 0 then
+			local id_pick = random_key_table(npc_inv)
+			local obj = id_pick and level.object_by_id(id_pick)
+			if obj then
+				npc:transfer_item(obj, actor)
+				npc_inv[id_pick] = nil
+				id = id_pick
+			end
+		else
+			local se_obj = sim:create(section, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+			id = se_obj and se_obj.id
+			
+			-- Register PDA if found
+			if npc and id and itms_npc_pda[section] then
+				txr_pda.register_pda(npc, section, id)
+			end
+		end
+
+		-- Set remaining uses if needed
+		if id then
+			cnt = cnt - max_uses
+			if cnt < 0 then
+				txr_condition.add_uses_to_process(id, (max_uses - (-cnt)))
+			end
+		else
+			printf("!ERROR: relocate_item_to_actor | object for section [%s] is bugged!", section)
+			break
+		end
+	end
+	
+	if is_ammo(nil, section) then
+		local box_size = ini_sys:r_s32(section, "box_size")
+		amount = amount * box_size
+	end
+	news_manager.relocate_item(actor, "in", section, amount)
+end
+
+function relocate_item_from_actor(actor, npc, section, amount)
+	if (not actor) then 
+		return
+	end
+	
+	if (npc == nil) then
+		--printf("! ERROR: Couldn't relocate_item_from_actor | no npc found!")
+	end
+	
+	amount = amount or 1
+	local sim = alife()
+	local cnt = amount
+	local max_uses = is_multi_use(nil,section)
+	local keep_itr = true
+	local function itr(temp, obj)
+		--printf("~relocate_item_from_actor | checked [%s]", obj:section())
+		if keep_itr and (obj and obj:section() == section) then
+			--printf("-relocate_item_from_actor | found needed section [%s]", section)
+			local uses = max_uses and obj:get_remaining_uses() or 1
+			cnt = cnt - uses
+			if (cnt >= 0) then
+				if npc then
+					actor:transfer_item(obj, npc)
+				else
+					local se_obj = alife_object(obj:id())
+					if se_obj then
+						sim:release(se_obj, true)
+					end
+				end
+				
+				if (cnt == 0) then
+					keep_itr = false
+				end
+			else
+				local remain_1 = -cnt
+				local remain_2 = max_uses - remain_1
+				txr_condition.add_uses_to_process(obj:id(), remain_1)
+				if npc then
+					local se_obj = sim:create(section, npc:position(), npc:level_vertex_id(), npc:game_vertex_id(), npc:id())
+					if se_obj then
+						txr_condition.add_uses_to_process(se_obj.id, remain_2)
+					end
+				end
+				keep_itr = false
+			end
+		end
+	end
+	actor:iterate_inventory(itr, nil)
+	
+	if cnt > 0 then
+		printf("! ERROR: Couldn't relocate_item_from_actor | not enough item [%s] recolated! need %s more", section, cnt)
+	end
+	
+	if is_ammo(nil, section) then
+		local box_size = ini_sys:r_s32(section, "box_size")
+		amount = amount * box_size
+	end
+	news_manager.relocate_item(actor, "out", section, amount)
+end
+
+
+-------------------------------
+-- ITEM TABLES
+-------------------------------
+function is_ammo(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_ammo[section]
+end
+
+function is_backpack(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_backpack[section]
+end
+
+function is_consumable(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_consumable[section]
+end
+
+function is_recipe(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_recipe[section]
+end
+
+function is_meal(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_meal[section]
+end
+
+function is_eatable(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_eatable[section]
+end
+
+function is_device(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_device[section]
+end
+
+function is_dissasembly(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_disassemble[section]
+end
+
+function is_money(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_money[section]
+end
+
+function is_multi_use(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_multiuse[section]
+end
+
+function is_part(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_parts[section]
+end
+
+function is_upgrade(obj,sec)
+	local section = obj and obj:section() or sec
+	return section and itms_upgrades[section]
+end
+
+function is_battery(obj,sec)
+	local section = obj and obj:section() or sec
+	if section == itm_battery then
+		return true
+	end
+	return false
+end
+
+ini_sys:section_for_each(function(section) -- search all sections
+	
+	local cost = ini_sys:r_float_ex(section,"cost")
+	if cost and cost > 0 then
+		local cls = ini_sys:r_string_ex(section,"class") or "unknown"
+		local kind = ini_sys:r_string_ex(section,"kind") or "unknown"
+		
+		if (cls == "II_FOOD") then
+			itms_consumable[section] = true
+			local max_uses = ini_sys:r_float_ex(section,"max_uses")
+			local condition = ini_sys:r_bool_ex(section,"use_condition")
+			if condition and max_uses and (max_uses > 1) then
+				itms_multiuse[section] = ini_sys:r_float_ex(section,"max_uses")
+				if (not ini_sys:r_bool_ex(section,"remove_after_use")) then
+					itms_multiuse_r[section] = ini_sys:r_float_ex(section,"max_uses")
+				end
+			end
+		end
+
+		if (cls == "AMMO") or (cls == "AMMO_S") then
+			itms_ammo[section] = ini_sys:r_float_ex(section,"box_size")
+		end
+		
+		if ini_sys:r_bool_ex(section,"craft_tool") then
+			itms_craft[section] = true
+		end
+		if ini_sys:r_bool_ex(section,"repair_tool") then
+			itms_repair[section] = alun_utils.parse_list(ini_sys,section,"repair_only",true)
+		end
+		if ini_sys:r_bool_ex(section,"workshop_tool") then
+			itms_workshop_tools[section] = alun_utils.parse_list(ini_sys,section,"workshop_support",true)
+		end
+		if ini_sys:r_bool_ex(section,"disassemble_tool") then
+			itms_disassemble[section] = ini_sys:r_float_ex(section,"degradation_factor") or 0.02
+		end
+		if ini_sys:r_bool_ex(section,"cooking_tool") then
+			itms_cook[section] = true
+		end
+		
+		if ini_sys:r_string_ex(section,"use_map") then
+			itms_map[section] = true
+		end
+		if ini_sys:r_string_ex(section,"money_amount") then
+			itms_money[section] = true
+		end
+		if ini_sys:r_bool_ex(section,"recipe") then
+			itms_recipe[section] = true
+		end
+		if ini_sys:r_bool_ex(section,"letter") then
+			itms_letter[section] = true
+		end
+		if ini_sys:r_float_ex(section,"meal") then
+			itms_meal[section] = ini_sys:r_float_ex(section,"meal")
+		end
+		if (kind == "i_mutant_cooked") or (kind == "i_food") or (kind == "i_drink") then
+			itms_eatable[section] = true
+		end
+		if (cls == "EQ_BAKPK") then
+			itms_backpack[section] = true
+		end
+		if (kind == "i_tool") or (kind == "i_kit") then
+			itms_tools[section] = true
+		end
+		if (kind == "i_part") then
+			itms_parts[section] = true
+		end
+		if (kind == "i_upgrade") then
+			itms_upgrades[section] = (sfind(section,"1") and 1) or (sfind(section,"2") and 2) or 3
+		end
+	end
+end)
+
+
+-------------------------------
+-- DEBUG
+-------------------------------
+function generate_boosters_list()
+	local config = ini_file_ex("booster_stats.ltx",true)
+	
+	ini_sys:section_for_each(function(section)
+		local cls = ini_sys:r_string_ex(section,"class")
+		if (cls == "II_FOOD") and (ini_sys:r_float_ex(section,"boost_time") > 0) then
+			local str = ""
+			str = str .. ("cost:" .. ini_sys:r_float_ex(section,"cost") .. "|")
+			str = str .. (ini_sys:r_float_ex(section,"max_uses") and ("uses:" .. ini_sys:r_float_ex(section,"max_uses") .. "|") or ("uses:1|"))
+			str = str .. ("boost_time:" .. ini_sys:r_float_ex(section,"boost_time") .. "|")
+			
+			if ini_sys:r_float_ex(section,"boost_max_weight") ~= 0 then
+				str = str .. ("boost_max_weight:" .. ini_sys:r_float_ex(section,"boost_max_weight") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_health_restore") ~= 0 then
+				str = str .. ("boost_health_restore:" .. ini_sys:r_float_ex(section,"boost_health_restore") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_power_restore") ~= 0 then
+				str = str .. ("boost_power_restore:" .. ini_sys:r_float_ex(section,"boost_power_restore") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_radiation_restore") ~= 0 then
+				str = str .. ("boost_radiation_restore:" .. ini_sys:r_float_ex(section,"boost_radiation_restore") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_bleeding_restore") ~= 0 then
+				str = str .. ("boost_bleeding_restore:" .. ini_sys:r_float_ex(section,"boost_bleeding_restore") .. "|")
+			end
+			
+			if ini_sys:r_float_ex(section,"boost_radiation_protection") ~= 0 then
+				str = str .. ("boost_radiation_protection:" .. ini_sys:r_float_ex(section,"boost_radiation_protection") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_telepat_protection") ~= 0 then
+				str = str .. ("boost_telepat_protection:" .. ini_sys:r_float_ex(section,"boost_telepat_protection") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_chemburn_protection") ~= 0 then
+				str = str .. ("boost_chemburn_protection:" .. ini_sys:r_float_ex(section,"boost_chemburn_protection") .. "|")
+			end
+			
+			if ini_sys:r_float_ex(section,"boost_burn_immunity") ~= 0 then
+				str = str .. ("boost_burn_immunity:" .. ini_sys:r_float_ex(section,"boost_burn_immunity") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_shock_immunity") ~= 0 then
+				str = str .. ("boost_shock_immunity:" .. ini_sys:r_float_ex(section,"boost_shock_immunity") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_radiation_immunity") ~= 0 then
+				str = str .. ("boost_radiation_immunity:" .. ini_sys:r_float_ex(section,"boost_radiation_immunity") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_telepat_immunity") ~= 0 then
+				str = str .. ("boost_telepat_immunity:" .. ini_sys:r_float_ex(section,"boost_telepat_immunity") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_chemburn_immunity") ~= 0 then
+				str = str .. ("boost_chemburn_immunity:" .. ini_sys:r_float_ex(section,"boost_chemburn_immunity") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_strike_immunity") ~= 0 then
+				str = str .. ("boost_strike_immunity:" .. ini_sys:r_float_ex(section,"boost_strike_immunity") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_wound_immunity") ~= 0 then
+				str = str .. ("boost_wound_immunity:" .. ini_sys:r_float_ex(section,"boost_wound_immunity") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_explosion_immunity") ~= 0 then
+				str = str .. ("boost_explosion_immunity:" .. ini_sys:r_float_ex(section,"boost_explosion_immunity") .. "|")
+			end
+			if ini_sys:r_float_ex(section,"boost_fire_wound_immunity") ~= 0 then
+				str = str .. ("boost_fire_wound_immunity:" .. ini_sys:r_float_ex(section,"boost_fire_wound_immunity") .. "|")
+			end
+			
+			config:w_value("temp", section, str)
+		end
+	end)
+	
+	config:save()
+end

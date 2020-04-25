@@ -1,0 +1,480 @@
+--------------------------------
+----- Written by Darryl123 -----
+--------------------------------
+-- =======================================================================================
+-- Modified by Tronex
+-- 2018/7/19 - Added anomalies interaction (triggered by close distance, works by timer)
+-- 2018/7/23 - Added support for notes section
+-- =======================================================================================
+
+--------------------------
+----- Initialisation -----
+--------------------------
+
+local anomaly_match = {
+	"zone_field_psychic",
+	"zone_field_radioactive",
+	"zone_burning_fuzz",
+	"zone_field_thermal",
+	"zone_mine_thermal",
+	"zone_zharka_static",
+	"zone_buzz",
+	"zone_mine_chemical",
+	"zone_mine_electric",
+	"zone_witches_galantine",
+	"zone_field_acidic",
+	"zone_mine_acidic",
+	"zone_mine_gravitational_big",
+	"zone_mine_gravitational_strong",
+	"zone_mine_gravitational_average",
+	"zone_mine_gravitational_weak",
+	"fireball_acidic_zone",
+	"fireball_zone",
+	"fireball_electric_zone",
+	"zone_teleport",
+	"lim_space_restrictor_0016"
+}
+
+local kind_to_section = {
+		["SM_POLTER_G"]  = "poltergeist",
+		["SM_PYRO_G"] 	 = "pyrogeist",
+		["SM_PSEUDO_G"]  = "pseudogeist"
+}
+
+-- Delays interaction until the player is loaded.
+-- This may look pointless, but it prevents articles unlocking "off-screen".
+local interaction_delay = nil
+local interaction_enabled = nil
+function actor_on_first_update()
+	interaction_delay = interaction_delay or time_global() + 7500
+end
+
+-- Checks whether or not interaction can be enabled.
+function actor_on_update()
+	if (interaction_delay and interaction_delay <= time_global()) then
+		-- Entering a vehicle.
+		--RegisterScriptCallback("actor_on_attach_vehicle", detect_vehicle_interaction)
+		
+		-- Talking-to or looting a character.
+		RegisterScriptCallback("actor_on_leave_dialog", detect_character_interaction)
+		--RegisterScriptCallback("actor_menu_mode_changed", detect_character_interaction2)
+		
+		-- Taking, using or equipping items.
+		--RegisterScriptCallback("actor_on_item_use", detect_item_interaction)
+		--RegisterScriptCallback("actor_item_to_slot", detect_item_interaction)
+		RegisterScriptCallback("actor_on_item_take", detect_item_interaction)
+		
+		-- Anomaly articles.
+		RegisterScriptCallback("anomaly_zone_on_feel_touch", anomaly_zone_on_feel_touch)
+		
+		-- We don't need these callbacks anymore.
+		UnregisterScriptCallback("actor_on_first_update", actor_on_first_update)
+		UnregisterScriptCallback("actor_on_update", actor_on_update)
+		
+		-- Enable guide interactivity.
+		interaction_enabled = true
+		
+		-- Unlock articles the player's faction, equipment and the current level.
+		local faction = character_community(db.actor):sub(7)
+		detect_faction_interaction(faction)
+		detect_level_interaction()
+		local function iterate(temp, obj)
+			detect_item_interaction(obj)
+		end
+		db.actor:iterate_inventory(iterate,nil)
+	end
+end
+
+-- Initialises callbacks for interactivity plugin.
+function on_game_start()
+	RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
+	RegisterScriptCallback("actor_on_update", actor_on_update)
+end
+
+-------------------------
+----- Interactivity -----
+-------------------------
+
+-- Anomaly detection
+local cache_anomaly = {}
+function anomaly_zone_on_feel_touch(obj, flags)
+
+	-- Return if the player didn't spend 3 hours in the zone
+	if (not has_alife_info("actor_spent_2_hrs_in_zone")) then
+		if (not txr_utils.is_time_spent_in_zone(0,0,2)) then
+			return false
+		else
+			db.actor:give_info_portion("actor_spent_2_hrs_in_zone")
+		end
+	end
+	
+	-- Article detection
+	local section = obj:section()
+	if (not cache_anomaly[section]) then
+		cache_anomaly[section] = true
+		for i=1,#anomaly_match do
+			if string.find(section,anomaly_match[i]) then
+				detect_anomaly_interaction(anomaly_match[i])
+			end
+		end
+	end
+end
+
+-- Used for poltergeists, cause you can't loot them
+local kind = {}
+function poltergeist_on_death_callback(victim, who)
+	local sec = victim:section()
+	kind[sec] = kind[sec] or ini_sys:r_string_ex(sec,"kind") or "unknown"
+	local name = kind_to_section[kind[sec]]
+	
+	if who and (who:id() == AC_ID) and name then
+		detect_mutant_interaction(name)
+	end
+end
+
+-- Generic method to save having to repeat code.
+function create_interaction(key, section)
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	local interactivity = guide.interactivity or {}
+	if (interaction_enabled and key and section and interactivity[key] and interactivity[key][section]) then
+		for k, v in pairs(interactivity[key][section]) do
+			if (key == "notes") then
+				unlock_note(v)
+			else
+				unlock_article(v)
+			end
+		end
+	end
+end
+
+-- Anomaly articles through various means.
+function detect_anomaly_interaction(anomaly)
+	create_interaction("anomalies", anomaly)
+end
+
+-- Character and faction articles for closing a dialog.
+function detect_character_interaction(character_id)
+	local character = level.object_by_id(character_id)
+	detect_faction_interaction(character_community(character))
+	create_interaction("characters", character and character:section() or nil)
+end
+
+-- Character and faction articles for looting a dead stalker.
+function detect_character_interaction2(mode, last_mode)
+	if (last_mode ~= 4) then return end
+	local character = ActorMenu.get_actor_menu():GetPartner()
+	if (not character or character:alive()) then return end
+	detect_faction_interaction(character_community(character))
+	create_interaction("characters", character and character:section() or nil)
+end
+
+-- Faction articles through various means.
+function detect_faction_interaction(faction)
+	create_interaction("factions", faction)
+end
+
+-- Item articles for taking, using or moving to slot.
+function detect_item_interaction(item)
+	local base = ini_sys:r_string_ex(item:section(),"uses_base")
+	if base then
+		create_interaction("items", base)
+	else
+		create_interaction("items", item:section())
+	end
+		
+	local kind = ini_sys:r_string_ex(item:section(),"kind")
+	if IsArtefact(item) and (kind ~= "i_attach") and (kind ~= "i_mutant_belt") then
+		create_interaction("artefacts", "about_artefacts")
+		create_interaction("artefacts", item:section())
+	end
+end
+
+-- Level articles for visiting them.
+function detect_level_interaction()
+	create_interaction("levels", level.name())
+end
+
+-- Mutant articles for field-dressing them.
+-- Called directly from mutant looting method.
+function detect_mutant_interaction(mutant)
+	create_interaction("mutants", mutant)
+end
+
+-- Location articles for being within 50m.
+-- Called directly from smart terrain update method.
+function detect_smart_interaction(smart)
+	create_interaction("smarts", smart:name())
+end
+
+-- Vehicle articles for entering.
+function detect_vehicle_interaction(vehicle)
+	create_interaction("vehicles", vehicle:section())
+end
+
+-- Notes through various means.
+function detect_note_interaction(note)
+	create_interaction("notes", note)
+end
+
+-- Check if an article is unlocked
+function is_article_unlocked(article)
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	local locked_articles = guide.locked_articles
+	local unlocked_articles = dxr_statistics.actor_articles
+	if article and (not locked_articles[article]) and (unlocked_articles[article]) then
+		return true
+	end
+	return false
+end
+
+-- Check if a note is unlocked
+function is_note_unlocked(note)
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	local locked_notes = guide.locked_notes
+	local unlocked_notes = dxr_statistics.actor_notes
+	if note and (not locked_notes[note]) and (unlocked_notes[note]) then
+		return true
+	end
+	return false
+end
+---------------------------
+----- Context Options -----
+---------------------------
+
+-- Action performed by USB memory sticks.
+function context_action_functor(item)
+	local item_object = alife_object(item:id())
+	alife():release(item_object, true)
+	unlock_article()
+end
+
+-- Text displayed for USB memory sticks.
+function context_functor(item)
+	-- Return if the item is not in the player inventory.
+	local parent = item:parent()
+	if not (parent and parent:id() == AC_ID) then
+		return
+	end
+	
+	-- Return if there are no articles to unlock.
+	if (get_articles_locked_count() == 0) then
+		return
+	end
+	
+	-- Return the context option to detach a sight.
+	return game.translate_string("ui_inv_download")
+end
+
+----------------------
+----- Statistics -----
+----------------------
+
+-- Counts how many articles currently exist.
+function get_articles_count()
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	return guide.articles_count
+end
+
+-- Counts how many articles are locked.
+function get_articles_locked_count()
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	return guide.articles_locked_count
+end
+
+-- Counts how many articles are unlocked.
+function get_articles_unlocked_count()
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	return guide.articles_unlocked_count
+end
+
+-- Counts how many notes currently exist.
+function get_notes_count()
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	return guide.notes_count
+end
+
+-- Counts how many notes are locked.
+function get_notes_locked_count()
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	return guide.notes_locked_count
+end
+
+-- Counts how many notes are unlocked.
+function get_notes_unlocked_count()
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	return guide.notes_unlocked_count
+end
+
+--------------------------------
+----- Article Manipulation -----
+--------------------------------
+
+-- Jumps straight to a specific article.
+-- Also returns the category and article indices.
+function set_article(section)
+	-- Instance of the guide object.
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	
+	-- Return if no section exists.
+	if not (section) then
+		return
+	end
+	
+	-- Discover the category of the article.
+	local article = nil
+	local category = nil
+	for index_c = 1, #guide.categories do
+		category = guide.categories[index_c]
+		-- Determine if the article is in this category.
+		if (category) then
+			for index_a = 1, #category.articles do
+				article = category.articles[index_a]
+				-- Set the category and article if correct.
+				if (article and article == section) then
+				
+					-- Refresh and select the categories and articles
+					guide:InitCategories() 
+					guide:SelectCategory(category.section)
+					guide:SelectArticle(article)
+					
+					return index_a, index_c
+				end
+			end
+		end
+	end
+end
+
+-- Unlocks an article for the player. A random one will be chosen if none is specified.
+function unlock_article(section)
+	-- Instance of the guide object.
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	
+	-- Instance of the locked and unlocked article tables.
+	local locked_articles = guide.locked_articles
+	local unlocked_articles = dxr_statistics.actor_articles
+	
+	-- Return if all articles have been unlocked.
+	if (get_articles_locked_count() == 0) then
+		return false
+	end
+	
+	-- Return if the specified article is already unlocked or doesn't exist.
+	if (section) then
+		if (unlocked_articles[section]) then
+			return false
+		elseif (not locked_articles[section]) then
+			return false
+		end
+		
+	-- Should no article be specified select one at random to unlock.
+	else
+		-- Determine the lowest tier of articles to make available.
+		local lowest_tier = guide.highest_tier
+		for k, v in pairs(locked_articles) do
+			lowest_tier = (v > 0 and v < lowest_tier) and v or lowest_tier
+		end
+		-- Sort available articles into tiered and valid tables.
+		local tiered_articles = {}
+		local valid_articles = {}
+		for k, v in pairs(locked_articles) do
+			if (v <= lowest_tier) then
+				if (v > 0) then
+					tiered_articles[#tiered_articles+1] = k
+				end
+				valid_articles[#valid_articles+1] = k
+			end
+		end
+		-- 50% chance of selecting from exclusively tiered articles if available.
+		-- Their information is more useful and important, so is given priority.
+		if (#tiered_articles > 0 and math.random(100) > 50) then
+			section = tiered_articles[math.random(#tiered_articles)]
+		else
+			section = valid_articles[math.random(#valid_articles)]
+		end
+	end
+	
+	-- Update the required tables.
+	locked_articles[section] = nil
+	unlocked_articles[section] = true
+	
+	-- Update the required counters.
+	guide.articles_locked_count = guide.articles_locked_count - 1
+	guide.articles_unlocked_count = guide.articles_unlocked_count + 1
+	dxr_statistics.increment_statistic("articles")
+	
+	-- Set the article and retrieve the indices.
+	local index_a, index_c = set_article(section)
+	if not (index_a and index_c) then return false end
+	
+	-- Send a message about unlocking the article.
+	if (axr_main.config:r_value("pda_encyclopedia", "display_messages", 1, true)) then
+		-- Article and category texts.
+		local message = game.translate_string("pda_encyclopedia_notify")
+		local text_c = game.translate_string(guide.categories[index_c].section)
+		local text_a
+		text_a = guide.categories[index_c].articles[index_a]
+		text_a = ui_pda_encyclopedia_tab.UpdateName(text_a)
+		text_a = game.translate_string(text_a)
+		-- Other information.
+		local header = game.translate_string("st_tip")
+		local texture = news_manager.tips_icons["guide_unlock"] or "ui_inGame2_Poslednie_razrabotki"
+		db.actor:give_game_news(header, strformat(message, text_c, text_a), texture, 0, 5000, 0)
+		txr_utils.play_sound("device\\pda\\pda_guide_2") --txr_utils.play_sound("device\\pda\\pda_guide")
+	end
+	
+	return true
+end
+
+-- Unlocks a note for the player.
+function unlock_note(section)
+	if (not section) then return false end
+	
+	-- Instance of the guide object.
+	local guide = ui_pda_encyclopedia_tab.get_ui()
+	
+	-- Instance of the locked and unlocked article tables.
+	local locked_notes = guide.locked_notes
+	local unlocked_notes = dxr_statistics.actor_notes
+	
+	-- Return if all notes have been unlocked.
+	if (get_notes_locked_count() == 0) then
+		return false
+	end
+	
+	-- Return if the specified article is already unlocked or doesn't exist.
+	if (unlocked_notes[section]) then
+		return false
+	elseif (not locked_notes[section]) then
+		return false
+	end
+	
+	-- Update the required tables.
+	locked_notes[section] = nil
+	unlocked_notes[section] = true
+	
+	-- Update the required counters.
+	guide.notes_locked_count = guide.notes_locked_count - 1
+	guide.notes_unlocked_count = guide.notes_unlocked_count + 1
+	dxr_statistics.increment_statistic("notes")
+	
+	-- Set the article and retrieve the indices.
+	local index_a, index_c = set_article(section)
+	if not (index_a and index_c) then return false end
+	
+	-- Send a message about unlocking the article.
+	if (axr_main.config:r_value("pda_encyclopedia", "display_messages", 1, true)) then
+		-- Article and category texts.
+		local message = game.translate_string("pda_encyclopedia_notify_note")
+		local text_a
+		text_a = guide.categories[index_c].articles[index_a]
+		text_a = ui_pda_encyclopedia_tab.UpdateName(text_a)
+		text_a = game.translate_string(text_a)
+		-- Other information.
+		local header = game.translate_string("st_tip")
+		local texture = "ui_iconsTotal_bar_darklab_documents" --news_manager.tips_icons["guide_unlock"] or "ui_inGame2_Poslednie_razrabotki"
+		db.actor:give_game_news(header, strformat(message, text_a), texture, 0, 5000, 0)
+		txr_utils.play_sound("device\\pda\\pda_note")
+	end
+	
+	return true
+end

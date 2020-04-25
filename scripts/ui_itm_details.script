@@ -1,0 +1,955 @@
+
+-- =======================================================================================
+-- Created by Tronex
+-- 2018/10/12
+-- Item details UI
+-- The script is stupid and messy but i have to do it this way for speed
+-- =======================================================================================
+
+
+--=======================================< Controls >=======================================--
+local ico_size, ico_width, rw
+local ini_parts
+local clr_1,clr_2,clr_3,clr_p,clr_g,clr_b,clr_r,clr_y
+
+local no_ammo_wpns = {
+	["wpn_binoc"] = true,
+	["wpn_knife"] = true,
+	["wpn_knife2"] = true,
+	["wpn_knife3"] = true,
+	["wpn_knife4"] = true,
+	["wpn_knife5"] = true,
+	["wpn_axe"] = true,
+	["wpn_axe2"] = true,
+	["wpn_axe3"] = true,
+}
+
+--=======================================< Crafting UI >=======================================--
+class "details_ui" (CUIScriptWnd)
+
+function details_ui:__init(owner,obj,section) super()
+	self.owner = owner
+	self.obj = obj
+	local is_wpn = IsWeapon(self.obj)
+
+	local h_fact = (device().height)/768
+	self.h_factor = h_fact > 1.1 and (h_fact) or nil
+	
+	ico_size = 0.7
+	ico_width = utils.is_widescreen() and 0.8 or 1
+	rw = utils.is_widescreen() and 0.8 or 1
+	ini_parts = itms_manager.ini_parts
+	clr_1 = txr_utils.get_clr("pda_white")
+	clr_2 = txr_utils.get_clr("ui_gray_1")
+	clr_3 = txr_utils.get_clr("ui_gray_2")
+	clr_p = txr_utils.get_clr("d_purple")
+	clr_g = txr_utils.get_clr("d_green")
+	clr_b = txr_utils.get_clr("d_cyan")
+	clr_r = txr_utils.get_clr("d_red")
+	clr_o = txr_utils.get_clr("d_orange")
+	clr_y = txr_utils.get_clr("yellow")
+	
+	self.sec = ini_sys:r_string_ex(section,"parent_section") or section
+	if (not ini_sys:section_exist(self.sec)) then return end
+	
+	self.t = {}
+	
+	self.t["desc"] = ui_item.get_obj_desc(self.obj)
+	self.t["weight"] = ini_sys:r_float_ex(self.sec,"inv_weight")
+	self.t["inv_grid_width"] = ini_sys:r_float_ex(self.sec,"inv_grid_width")
+	self.t["inv_grid_height"] = ini_sys:r_float_ex(self.sec,"inv_grid_height")
+	self.t["upgr_icon_height"] = ini_sys:r_float_ex(self.sec,"upgr_icon_height")
+	self.t["kind"] = ini_sys:r_string_ex(self.sec,"kind")
+	
+	self.t["uses"] = itms_manager.is_multi_use(nil, self.sec) and self.obj:get_remaining_uses()
+	self.t["max_uses"] = ini_sys:r_float_ex(self.sec,"max_uses")
+	self.t["empty_weight"] = ini_sys:r_float_ex(self.sec,"empty_weight")
+	
+	-- Artefacts
+	self.t["health_restore_speed"] = ini_sys:r_float_ex(self.sec,"health_restore_speed")
+	self.t["radiation_restore_speed"] = ini_sys:r_float_ex(self.sec,"radiation_restore_speed")
+	self.t["satiety_restore_speed"] = ini_sys:r_float_ex(self.sec,"satiety_restore_speed")
+	self.t["power_restore_speed"] = ini_sys:r_float_ex(self.sec,"power_restore_speed")
+	self.t["bleeding_restore_speed"] = ini_sys:r_float_ex(self.sec,"bleeding_restore_speed")
+	self.t["additional_inventory_weight"] = ini_sys:r_float_ex(self.sec,"additional_inventory_weight")
+	
+	local immunities = ini_sys:r_string_ex(self.sec,"hit_absorbation_sect")
+	if immunities and immunities ~= "" then
+		self.t["burn_immunity"] = ini_sys:r_float_ex(immunities,"burn_immunity")
+		self.t["strike_immunity"] = ini_sys:r_float_ex(immunities,"strike_immunity")
+		self.t["shock_immunity"] = ini_sys:r_float_ex(immunities,"shock_immunity")
+		self.t["wound_immunity"] = ini_sys:r_float_ex(immunities,"wound_immunity")
+		self.t["radiation_immunity"] = ini_sys:r_float_ex(immunities,"radiation_immunity")
+		self.t["telepatic_immunity"] = ini_sys:r_float_ex(immunities,"telepatic_immunity")
+		self.t["chemical_burn_immunity"] = ini_sys:r_float_ex(immunities,"chemical_burn_immunity")
+		self.t["explosion_immunity"] = ini_sys:r_float_ex(immunities,"explosion_immunity")
+		self.t["fire_wound_immunity"] = ini_sys:r_float_ex(immunities,"fire_wound_immunity")
+	end
+	
+	self.t["af_rank"] = ini_sys:r_float_ex(self.sec,"af_rank")
+	
+	-- Outfits
+	self.t["power_loss"] = ini_sys:r_float_ex(self.sec,"power_loss")
+	self.t["burn_protection"] = ini_sys:r_float_ex(self.sec,"burn_protection")
+	self.t["shock_protection"] = ini_sys:r_float_ex(self.sec,"shock_protection")
+	self.t["radiation_protection"] = ini_sys:r_float_ex(self.sec,"radiation_protection")
+	self.t["chemical_burn_protection"] = ini_sys:r_float_ex(self.sec,"chemical_burn_protection")
+	self.t["telepatic_protection"] = ini_sys:r_float_ex(self.sec,"telepatic_protection")
+	self.t["strike_protection"] = ini_sys:r_float_ex(self.sec,"strike_protection")
+	self.t["explosion_protection"] = ini_sys:r_float_ex(self.sec,"explosion_protection")
+	self.t["wound_protection"] = ini_sys:r_float_ex(self.sec,"wound_protection")
+	self.t["fire_wound_protection"] = ini_sys:r_float_ex(self.sec,"fire_wound_protection")
+	
+	-- Consumables
+	--self.t["eat_satiety"] = ini_sys:r_float_ex(self.sec,"eat_satiety")
+	--self.t["eat_sleepiness"] = ini_sys:r_float_ex(self.sec,"eat_sleepiness")
+	--self.t["eat_alcohol"] = ini_sys:r_float_ex(self.sec,"eat_alcohol")
+	--self.t["eat_health"] = ini_sys:r_float_ex(self.sec,"eat_health")
+	--self.t["boost_time"] = ini_sys:r_float_ex(self.sec,"boost_time")
+	--self.t["boost_max_weight"] = ini_sys:r_float_ex(self.sec,"boost_max_weight")
+	--self.t["boost_power_restore"] = ini_sys:r_float_ex(self.sec,"boost_power_restore")
+	--self.t["boost_radiation_restore"] = ini_sys:r_float_ex(self.sec,"boost_radiation_restore")
+	--self.t["boost_bleeding_restore"] = ini_sys:r_float_ex(self.sec,"boost_bleeding_restore")
+	--self.t["boost_radiation_protection"] = ini_sys:r_float_ex(self.sec,"boost_radiation_protection")
+	--self.t["boost_chemburn_protection"] = ini_sys:r_float_ex(self.sec,"boost_chemburn_protection")
+	--self.t["boost_telepat_protection"] = ini_sys:r_float_ex(self.sec,"boost_telepat_protection")
+	--self.t["boost_wound_immunity"] = ini_sys:r_float_ex(self.sec,"boost_wound_immunity")
+	--self.t["boost_fire_wound_immunity"] = ini_sys:r_float_ex(self.sec,"boost_fire_wound_immunity")
+	--self.t["boost_explosion_immunity"] = ini_sys:r_float_ex(self.sec,"boost_explosion_immunity")
+	--self.t["boost_strike_immunity"] = ini_sys:r_float_ex(self.sec,"boost_strike_immunity")
+	
+	--self.t["power_consumption"] = itms_manager.is_device(nil,self.sec)
+	
+	self.t["ammo"] = txr_utils.get_weapon_ammo_list(self.obj)
+	self.t["grenade_class"] = txr_utils.extract_var(ini_sys,self.sec,"grenade_class",1)
+	self.t["parts"] = txr_condition.get_parts_con(self.obj, nil, true)
+	
+	self.t["scope"] = txr_utils.extract_var(ini_sys,self.sec,"scopes",1)
+	self.t["silencer"] = IsWeapon(self.obj) and txr_utils.get_weapon_property(self.obj, "silencer_name", "string")
+	self.t["grenade"] = IsWeapon(self.obj) and txr_utils.get_weapon_property(self.obj, "grenade_launcher_name", "string")
+	
+	self.t["scope_status"] = is_wpn and self.obj:weapon_scope_status() or 0 --ini_sys:r_float_ex(self.sec,"silencer_status")
+	self.t["silencer_status"] = is_wpn and self.obj:weapon_silencer_status() or 0 --ini_sys:r_float_ex(self.sec,"silencer_status")
+	self.t["grenade_status"] = is_wpn and self.obj:weapon_grenadelauncher_status() or 0 --ini_sys:r_float_ex(self.sec,"grenade_launcher_status")
+	
+	self.t["disassemble"] = txr_utils.extract_var(ini_parts,"nor_parts_list",self.sec,1)
+	--self.t["repair_bonus"] = ini_sys:r_float_ex(self.sec,"repair_part_bonus")
+	--self.t["repair_min_condition"] = ini_sys:r_float_ex(self.sec,"repair_min_condition")
+	--self.t["repair_max_condition"] = ini_sys:r_float_ex(self.sec,"repair_max_condition")
+	--self.t["repair_add_condition"] = ini_sys:r_float_ex(self.sec,"repair_add_condition")
+	self.t["repair_parts_sections"] = txr_utils.extract_var(ini_sys,self.sec,"repair_parts_sections",1)
+	
+	self.t["repair_type"] = ini_sys:r_string_ex(self.sec,"repair_type")
+	if self.t["repair_type"] then
+		self.t["repair"] = {}
+		for k,v in pairs(itms_manager.itms_repair) do
+			if v[self.t["repair_type"]] then
+				self.t["repair"][#self.t["repair"] + 1] = k
+			end
+		end
+		for k,v in pairs(itms_manager.itms_workshop_tools) do
+			if v[self.t["repair_type"]] then
+				self.t["workshop_support"] = k
+				break
+			end
+		end
+	end
+	
+	self.t["upgrades"] = txr_utils.extract_var(ini_sys,self.sec,"upgrades",1)
+	if self.t["upgrades"] and (#self.t["upgrades"] > 0) then
+		self.t["upg"] = {}
+		for i=1, #self.t["upgrades"] do
+			txr_utils.extract_upgr(self.t["upg"],self.t["upgrades"][i])
+		end
+		--[[
+		for k,v in pairs(self.t["upg"]) do
+			for k2,v2 in pairs(v) do
+				printf("- upgrade table group[%s] index[%s] = %s",k,k2,v2)
+			end
+		end
+		--]]
+	end
+	--self.t["upgrades_scheme"] = ini_sys:r_string_ex(self.sec,"upgrade_scheme")
+	
+	self:InitControls()
+	self:InitCallBacks()
+end
+
+function details_ui:__finalize()
+end
+
+function details_ui:InitControls()
+	self:SetWndRect			(Frect():set(0,0,1024,768))
+	self:SetAutoDelete(true)
+	
+	self.xml				= CScriptXmlInit()
+	local xml = self.xml
+	xml:ParseFile			("ui_item_detail.xml")
+
+	self.dialog					= xml:InitStatic("itm_details:background", self)
+
+	self.cap = xml:InitTextWnd("itm_details:cap", self.dialog)
+	self.cap:SetText(ui_item.get_sec_name(self.sec))
+	
+	self.scroll = xml:InitScrollView("itm_details:scroll_v", self.dialog)
+	local _w = self.scroll:GetWidth()
+	--printf("-w: %s",_w)
+	
+	self.templ = xml:InitStatic("itm_details:templ_v",nil)
+	
+	self.box = {}
+	self.pic = {}
+	self.hint_txt = {}
+	self.hint_pic_txt = {}
+	local line
+	
+	local n,m = 0,0
+	local x,y,w,h = 0,0,0,0
+	local function i_n() -- increase item icon counter
+		n = n + 1
+		return n
+	end
+	local function i_m() -- increase pic icon counter
+		m = m + 1
+		return m
+	end
+	local function i_y(num,fact) -- increase y
+		y = y + (num or (fact and h > 0 and (h * fact)) or (h > 0 and h) or 50)
+		x = 0
+		w = 0
+	end
+	local function i_r(num,y_num) -- increase row
+		if (x + w + num) > _w then
+			x = 0
+			w = 0
+			i_y(y_num)
+		end
+	end
+	local function i_l(dark) -- insert line
+		i_y()
+		
+		if dark then
+			line = xml:InitTextWnd("itm_details:text_s_c", self.templ)
+			x,y,w,h = self:setup_element(line, 0, y, 1500, 20)
+			line:SetText("____________________________________________________________________________________________________")
+			line:AdjustWidthToText()
+			line:SetTextColor(GetARGB(0, 10, 10, 10))
+		else
+			line = xml:InitStatic("itm_details:pic_line",self.templ)
+			line:InitTexture("ui_itm_line")
+			x,y,w,h = self:setup_element(line, -5, y, 732, 16)
+		end
+		
+		i_y()
+	end
+	local function a_col(index, is_2, ww, hh, offset) -- adjust column
+		local yy = y
+		local xx = x
+		if (index == 1) or (index == 3) or (index == 5) then
+			yy = is_2 and (yy - (hh/2) - 5) or yy
+			xx = x + ((index ~= 1) and ww or 25) + ((index ~= 1) and offset or 0)
+		else
+			yy = yy + (hh/2) + 5
+		end
+		return xx,yy
+	end
+	
+	-- Basic info
+	self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+	x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 30)
+	self.box[n]:SetText(game.translate_string("st_ui_info"))
+	i_y()
+	
+	-- Icon
+	self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+	x,y,w,h = self:setup_upgr_icon(self.obj, self.box[n], n, self.sec, 0, y, _w, self.t["upgr_icon_height"] or (self.t["inv_grid_height"]*50 + 30)) --self.t["inv_grid_width"]*50
+	i_y(nil, self.h_factor)
+	
+	-- Description
+	self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+	x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+	self.box[n]:SetText(self.t["desc"])
+	self.box[n]:AdjustHeightToText()
+	h = self.box[n]:GetHeight()
+	--i_y(nil, self.h_factor)
+	i_y()
+	
+	-- Weight
+	local weight = self.t["weight"]
+	if self.t["uses"] and (self.t["uses"] ~= 0) and self.t["empty_weight"] and self.t["max_uses"] then
+		weight = ((self.t["uses"]/self.t["max_uses"]) * (weight - self.t["empty_weight"])) + self.t["empty_weight"]
+	end
+	
+	local str = clr_o .. "  •  " .. clr_3 .. game.translate_string("ui_total_weight") .. " " .. clr_2 .. tostring(weight) .. " " .. game.translate_string("st_kg")
+	self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+	x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+	self.box[n]:SetText(str)
+	i_y(20)
+	
+	-- Power Loss
+	if self.t["power_loss"] and (self.t["power_loss"] ~= 0) then
+		local str = clr_y .. "  •  " .. clr_3 .. game.translate_string("st_ui_power_loss") .. ": " .. clr_2 .. tostring(self.t["power_loss"] * 100) .. "%"
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	-- Artefacts
+	if self.t["af_rank"] and (self.t["af_rank"] ~= 0) then
+		local str = clr_y .. "  •  " .. clr_3 .. game.translate_string("st_ui_arty_rank") .. ": " .. clr_2 .. tostring(self.t["af_rank"])
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(30)
+	end
+	
+	if self.t["health_restore_speed"] and (self.t["health_restore_speed"] ~= 0) then
+		local sign = self.t["health_restore_speed"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_health") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["health_restore_speed"]*5000,2))
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["radiation_restore_speed"] and (self.t["radiation_restore_speed"] ~= 0) then
+		local sign = self.t["radiation_restore_speed"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_radiation") .. ": " .. (sign == "+" and clr_r or clr_2) .. sign .. tostring(utils.round(self.t["radiation_restore_speed"]*47000,2)) .. " " .. game.translate_string("st_msv_sec")
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["satiety_restore_speed"] and (self.t["satiety_restore_speed"] ~= 0) then
+		local sign = self.t["satiety_restore_speed"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_satiety") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["satiety_restore_speed"],2))
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["power_restore_speed"] and (self.t["power_restore_speed"] ~= 0) then
+		local sign = self.t["power_restore_speed"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_power") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["power_restore_speed"]*30000,2)) .. " %"
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["bleeding_restore_speed"] and (self.t["bleeding_restore_speed"] ~= 0) then
+		local sign = self.t["bleeding_restore_speed"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_bleeding") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["bleeding_restore_speed"]*15000,2)) .. " " .. game.translate_string("st_ml_min")
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["additional_inventory_weight"] and (self.t["additional_inventory_weight"] ~= 0) then
+		local sign = self.t["additional_inventory_weight"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_weight") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(self.t["additional_inventory_weight"]) .. " " .. game.translate_string("st_kg")
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+
+	if self.t["burn_immunity"] and (self.t["burn_immunity"] ~= 0) then
+		local sign = self.t["burn_immunity"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_outfit_burn_protection") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["burn_immunity"]*73739,2)) .. " %"
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["shock_immunity"] and (self.t["shock_immunity"] ~= 0) then
+		local sign = self.t["shock_immunity"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_outfit_shock_protection") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["shock_immunity"]*2000,2)) .. " " .. game.translate_string("st_kv")
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["chemical_burn_immunity"] and (self.t["chemical_burn_immunity"] ~= 0) then
+		local sign = self.t["chemical_burn_immunity"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_outfit_chemical_burn_protection") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["chemical_burn_immunity"]*76400,2)) .. " %"
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["telepatic_immunity"] and (self.t["telepatic_immunity"] ~= 0) then
+		local sign = self.t["telepatic_immunity"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_outfit_telepatic_protection") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["telepatic_immunity"]*23200,2)) .. " %"
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["radiation_immunity"] and (self.t["radiation_immunity"] ~= 0) then
+		local sign = self.t["radiation_immunity"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_outfit_radiation_protection") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["radiation_immunity"]*13636,2)) .. " %"
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["strike_immunity"] and (self.t["strike_immunity"] ~= 0) then
+		local sign = self.t["strike_immunity"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_outfit_strike_protection") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["strike_immunity"]*2500,2)) .. " %"
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["wound_immunity"] and (self.t["wound_immunity"] ~= 0) then
+		local sign = self.t["wound_immunity"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_outfit_wound_protection") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["wound_immunity"]*2500,2)) .. " " .. game.translate_string("st_j")
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["explosion_immunity"] and (self.t["explosion_immunity"] ~= 0) then
+		local sign = self.t["explosion_immunity"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_outfit_explosion_protection") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["explosion_immunity"]*2500,2)) .. " " .. game.translate_string("st_j")
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["fire_wound_immunity"] and (self.t["fire_wound_immunity"] ~= 0) then
+		local sign = self.t["fire_wound_immunity"] > 0 and "+" or ""
+		local str = clr_p .. "  •  " .. clr_3 .. game.translate_string("ui_inv_outfit_fire_wound_protection") .. ": " .. (sign == "+" and clr_2 or clr_r) .. sign .. tostring(utils.round(self.t["fire_wound_immunity"]*2500,2)) .. " " .. game.translate_string("st_j")
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	
+	if self.t["eat_satiety"] and (self.t["eat_satiety"] ~= 0) then
+		local sign = self.t["eat_satiety"] > 0 and "+" or ""
+		local str = clr_g .. "  •  " .. clr_3 .. game.translate_string("ui_inv_satiety") .. ": " .. sign .. (sign == "+" and clr_2 or clr_r) .. tostring(self.t["eat_satiety"]*1000) .. " " .. game.translate_string("st_kcal")
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	-- Repair bonus
+	if self.t["repair_add_condition"] and (self.t["repair_add_condition"] ~= 0) then
+		local str = clr_b .. "  •  " .. clr_3 .. game.translate_string("st_ui_repair_add_condition") .. ": " .. clr_2 .. tostring(self.t["repair_add_condition"]*100) .. " %"
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	
+	if self.t["repair_min_condition"] and (self.t["repair_min_condition"] ~= 0) then
+		local str = clr_b .. "  •  " .. clr_3 .. game.translate_string("st_ui_repair_min_condition") .. ": " .. clr_2 .. tostring(self.t["repair_min_condition"]*100) .. " %"
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end
+	--[[
+	if self.t["repair_bonus"] and (self.t["repair_bonus"] ~= 0) then
+		local str = clr_b .. "  •  " .. clr_3 .. game.translate_string("st_ui_repair_bonus") .. ": " .. clr_2 .. tostring(self.t["repair_bonus"]*100) .. " %"
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, _w, 50)
+		self.box[n]:SetText(str)
+		i_y(20)
+	end--]]
+	
+	i_l()
+	
+	-- Ammo
+	if self.t["ammo"] and (#self.t["ammo"] > 0) and IsWeapon(self.obj) and (not no_ammo_wpns[self.sec]) then
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 50)
+		self.box[n]:SetText(game.translate_string("ui_ammo_types"))
+		i_y()
+		
+		for i=1,#self.t["ammo"] do
+			i_r(50)
+			self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+			x,y,w,h = self:setup_icon(self.box[n], n, self.t["ammo"][i], x+w , y, 100, 50)
+		end
+		i_l()
+	end
+	
+	-- Scopes
+	if self.t["scope"] and (#self.t["scope"] > 0) then
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 50)
+		self.box[n]:SetText(game.translate_string("st_ui_scopes"))
+		i_y()
+		
+		for i=1,#self.t["scope"] do
+			i_r(50)
+			self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+			x,y,w,h = self:setup_icon(self.box[n], n, self.t["scope"][i], x+w , y, 100, 50)
+		end
+		i_l()
+	end
+	
+	-- Silencer
+	if self.t["silencer"] and (self.t["silencer_status"] == 2) then
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 50)
+		self.box[n]:SetText(game.translate_string("st_ui_silencer"))
+		i_y()
+		
+		self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+		x,y,w,h = self:setup_icon(self.box[n], n, self.t["silencer"], 0 , y, 100, 50)
+		i_l()
+	end
+	
+	-- Grenade Launcher
+	if self.t["grenade"] and (self.t["grenade_status"] == 2) then
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 50)
+		self.box[n]:SetText(game.translate_string("st_ui_grenade_launcher"))
+		i_y()
+		
+		self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+		x,y,w,h = self:setup_icon(self.box[n], n, self.t["grenade"], 0 , y, 100, 50)
+		i_l()
+	end
+	
+	-- Parts
+	if self.t["parts"] then
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 50)
+		self.box[n]:SetText(game.translate_string("st_ui_awr_parts_list"))
+		i_y()
+		
+		for k,v in pairs(self.t["parts"]) do
+			if (k ~= self.sec) then
+				i_r(50)
+				self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+				x,y,w,h = self:setup_icon(self.box[n], n, k, x+w , y, 100, 50)
+				
+				self.box[i_n()] = xml:InitTextWnd("itm_details:text_s_c", self.templ)
+				self:setup_element(self.box[n], x, y+50, 100, 25)
+				
+				--local clr = ((v < 25) and clr_r) or ((v < 50) and clr_o) or ((v < 75) and clr_y) or clr_g
+				v = txr_utils.get_static_cond(v)
+				local str = txr_utils.get_con_txt(v,IsWeapon(self.obj))
+				local clr = txr_utils.get_con_clr(v)
+				self.box[n]:SetText(clr .. str)
+			end
+		end
+		i_y(25)
+		i_l()
+	end
+	
+	-- Repair kits
+	if self.t["repair"] and (#self.t["repair"] > 0) then
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 50)
+		self.box[n]:SetText(game.translate_string("st_ui_repair_kit_list"))
+		i_y()
+
+		for i=1,#self.t["repair"] do
+			i_r(50)
+			self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+			x,y,w,h = self:setup_icon(self.box[n], n, self.t["repair"][i], x+w , y, 100, 50)
+		end
+		i_l()
+	end
+	
+	-- Workshop kit
+	if self.t["workshop_support"] then
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 50)
+		self.box[n]:SetText(game.translate_string("st_ui_workshop_kit_list"))
+		i_y()
+
+		i_r(50)
+		self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+		x,y,w,h = self:setup_icon(self.box[n], n, self.t["workshop_support"], x+w , y, 100, 50)
+		i_l()
+	end
+	
+	-- Disassembly
+	if self.t["disassemble"] and (#self.t["disassemble"] > 0) and (self.t["kind"] ~= "i_quest") then
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 50)
+		self.box[n]:SetText(game.translate_string("st_ui_disassemly_list"))
+		i_y()
+		
+		for i=1,#self.t["disassemble"] do
+			i_r(50)
+			self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+			x,y,w,h = self:setup_icon(self.box[n], n, self.t["disassemble"][i], x+w , y, 100, 50)
+		end
+		i_l()
+	end
+	
+	-- Supported repair material
+	if self.t["repair_parts_sections"] and (#self.t["repair_parts_sections"] > 0) then
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 50)
+		self.box[n]:SetText(game.translate_string("st_ui_repair_parts_include"))
+		i_y()
+		
+		for i=1,#self.t["repair_parts_sections"] do
+			i_r(50)
+			self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+			x,y,w,h = self:setup_icon(self.box[n], n, self.t["repair_parts_sections"][i], x+w , y, 100, 50)
+		end
+		i_l()
+	end
+	
+	-- upgrades
+	if self.t["upg"] then -- t[group][index] = {section,name,desc,icon} [90,44]
+		self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_l", self.templ)
+		x,y,w,h = self:setup_element(self.box[n], 0, y, 200, 50)
+		self.box[n]:SetText(game.translate_string("st_ui_upgrade_list"))
+		i_y(100)
+
+		for k1,v1 in pairs(self.t["upg"]) do
+			--local et = xml:InitStatic("itm_details:pic",self.templ)
+			--self:setup_element(et,0,y -32,_w,110)
+			--et:InitTexture("ui_mutant_loot_frame")
+			--et:SetStretchTexture(true)
+		
+			self.box[i_n()] = xml:InitTextWnd("itm_details:text_b_c", self.templ)
+			x,y,w,h = self:setup_element(self.box[n], 0, y, 25, 50)
+			self.box[n]:SetText(tostring(k1))
+			
+			for k2,v2 in pairs(v1) do
+				local xx,yy = a_col(k2, v1[k2+1], 90 ,44, 90)
+				local _1,_2
+				self.pic[i_m()] = xml:InitStatic("itm_details:pic",self.templ)
+				x,_1,w,h = self:setup_pic(self.pic[m], m, v2, xx , yy, 90, 44)
+				--printf("-v2:%s - k2:%s - yy:%s - xx: %s - m: %s - y:%s ",v2.name,k2,yy,xx,m,y)
+				
+				if v2.tool then
+					self.box[i_n()] = xml:InitStatic("itm_details:pic",self.templ)
+					_2,_1,w,h = self:setup_icon(self.box[n], n, v2.tool, x+w , yy, 44, 44)
+				end
+			end
+			
+			i_y(20)
+			i_r(1000,120)
+		end
+	end
+	
+	self.templ:SetWndSize(vector2():set(_w , y + 50))
+	self.scroll:AddWindow(self.templ, true)
+	self.templ:SetAutoDelete(false)
+	
+	
+	-- Main Buttons
+	self.btn_back = xml:Init3tButton("itm_details:btn_back", self.dialog)
+	--txr_utils.adjust_ui(self.btn_back)
+	self:Register(self.btn_back,"btn_back")
+	
+	-- Hint Window
+	self.hint_wnd = xml:InitFrame("hint_wnd:background",self)
+	self.hint_wnd:SetAutoDelete(false)
+	self.hint_wnd_text = xml:InitTextWnd("hint_wnd:text",self.hint_wnd)
+	self.hint_wnd:Show(false)
+	
+	-- Message Window 
+	self.msg_wnd = xml:InitFrame("hint_wnd:background",self)
+	self.msg_wnd:SetAutoDelete(false)
+	self.msg_wnd_text = xml:InitTextWnd("hint_wnd:text",self.msg_wnd)
+	self.msg_wnd_text:SetTextAlignment(2)
+	
+	self.msg_wnd:Show(false)
+	self.msg_wnd:SetColor(GetARGB(255,0,0,0))
+end
+
+function details_ui:InitCallBacks()
+	self:AddCallback("btn_back", ui_events.BUTTON_CLICKED, self.OnBack, self)
+end
+
+function details_ui:Update()
+	CUIScriptWnd.Update(self)
+	
+	-- Warning messages timer 
+	if (self.msg_wnd_timer and time_global() > self.msg_wnd_timer) then 
+		self.msg_wnd_timer = nil
+		self.msg_wnd:Show(false)
+	end
+	
+	for i=1,#self.box do 
+		if (self.box[i] and self.box[i]:IsCursorOverWindow()) then
+			local str = ""
+			if self.hint_txt[i] then
+				local name = ui_item.get_sec_name(self.hint_txt[i])
+				local desc = ui_item.get_sec_desc(self.hint_txt[i])
+				str = clr_1 .. name .. "\\n \\n " .. clr_2 .. desc
+			end
+			self:SetHint(str)
+			return
+		end
+	end
+	for i=1,#self.pic do
+		if (self.pic[i] and self.pic[i]:IsCursorOverWindow()) then
+			local str = ""
+			if self.hint_pic_txt[i] then
+				local name = game.translate_string(self.hint_pic_txt[i].name) or ""
+				local desc =  game.translate_string(self.hint_pic_txt[i].desc) or ""
+				str = clr_1 .. name .. "\\n \\n " .. clr_2 .. desc
+			end
+			self:SetHint(str)
+			return
+		end
+	end
+	self.hint_wnd:Show(false)
+end 
+
+function details_ui:SetMsg(text,tmr)
+	if (text == "") then 
+		return 
+	end
+	self.msg_wnd:Show(true)
+	self.msg_wnd_text:SetText(text)
+	self.msg_wnd_text:AdjustHeightToText()
+	self.msg_wnd_text:SetWndSize(vector2():set(820,self.msg_wnd_text:GetHeight()+10))
+	self.msg_wnd_text:SetWndPos(vector2():set(0,20))
+	
+	self.msg_wnd:SetWndSize(vector2():set(820,self.msg_wnd_text:GetHeight()+44))
+	self.msg_wnd:SetWndPos(vector2():set(0,80))
+
+	self.msg_wnd_timer = time_global() + 1000*tmr
+end
+
+function details_ui:SetHint(text,pos)
+	if (text == "") then
+		return
+	end
+	self.hint_wnd:Show(true)
+	self.hint_wnd_text:SetText(text)
+	self.hint_wnd_text:AdjustHeightToText()
+	self.hint_wnd:SetWndSize(vector2():set(self.hint_wnd:GetWidth(),self.hint_wnd_text:GetHeight()+44))
+	
+	pos = pos or GetCursorPosition()
+	pos.y = pos.y - self.hint_wnd:GetHeight()
+	pos.x = pos.x - self.hint_wnd:GetWidth()
+	self.hint_wnd:SetWndPos(pos)
+	
+	FitInRect(self.hint_wnd,Frect():set(0,0,1024,768),0,100)
+end
+
+
+---------------< Callbacks >---------------
+function details_ui:OnBack()
+	self:HideDialog()
+end
+
+function details_ui:OnKeyboard(dik, keyboard_action)
+	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
+	if (res == false) then
+		local bind = dik_to_bind(dik)
+		if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+			if dik == DIK_keys.DIK_ESCAPE then
+				self:OnBack()
+			end
+		end
+	end
+	return res
+end
+
+---------------< Utility >---------------
+
+function details_ui:setup_element(element,x,y,w,h)
+	element:SetWndPos(vector2():set(x,y))
+	element:SetWndSize(vector2():set(w,h))
+	--printf("-before: x: %s - y: %s - w: %s - h: %s",x,y,w,h)
+	--txr_utils.adjust_ui(element)
+	
+	local pos = element:GetWndPos()
+	local _w = element:GetWidth()
+	local _h = element:GetHeight()
+	--printf("-after: x: %s - y: %s - w: %s - h: %s",pos.x,pos.y,_w,_h)
+	return pos.x,pos.y,_w,_h
+end
+
+function details_ui:setup_icon(element, index, sec, pos_x, pos_y, w, h)
+	self.hint_txt[index] = (index ~= 2) and sec or nil -- ignore the item icon itself
+
+	local pos_x,pos_y,_w,_h = self:setup_element(element,pos_x,pos_y,w,h)
+
+	local ico = txr_utils.get_item_axis(sec)
+	element:InitTexture("ui\\ui_icon_equipment")
+	element:SetTextureRect(Frect():set(ico.x1, ico.y1, ico.x2, ico.y2))
+	element:SetStretchTexture(true)
+	
+	local ratio = ico.w/ico.h
+	local h, w
+	ico.w = ico.w * ico_size --* ico_width
+	ico.h = ico.h * ico_size
+	
+	local w_t, h_t = 0, 0
+	local resize = false
+	if (ico.w > _w) then -- if icon width is bigger than frame width
+		w_t = ico.w - _w
+		resize = true	
+	end 
+	if (ico.h > _h) then -- if icon height is bigger than frame height
+		h_t = ico.h - _h 
+		resize = true	
+	end 
+	
+	if resize then -- resize is required
+		if (w_t >= h_t) then -- if icon width is the big number (or square), use it as a base for resizing
+			w = _w
+			h = w / ratio
+		elseif (w_t < h_t) then -- if icon width is the big number, use it as a base for resizing
+			h = _h
+			w = h * ratio
+		end
+	else -- no resize
+		w = ico.w
+		h = ico.h
+	end
+	
+	offset_x = (_w - w)/2
+	offset_y = (_h - h)/2
+	element:SetWndSize(vector2():set(w , h))
+	element:SetWndPos(vector2():set(pos_x + offset_x , pos_y + offset_y))
+	
+	return pos_x,pos_y,_w,_h
+end
+
+local upgr_chk = {
+	["weapon"] = {
+		{ x = 1724 , y = 802 , w = 167 , h = 159 }
+	},
+	["outfit"] = {
+		{ x = 716 , y = 824 , w = 198 , h = 129 },
+		{ x = 814 , y = 579 , w = 159 , h = 137 }
+	},
+}
+function details_ui:setup_upgr_icon(obj, element, index, sec, pos_x, pos_y, w, h)
+	self.hint_txt[index] = (index ~= 2) and sec or nil -- ignore the item icon itself
+
+	local pos_x,pos_y,_w,_h = self:setup_element(element,pos_x,pos_y,w,h)
+
+	local upgr_x = ini_sys:r_float_ex(sec,"upgr_icon_x")
+	local upgr_y = ini_sys:r_float_ex(sec,"upgr_icon_y")
+	local upgr_w = ini_sys:r_float_ex(sec,"upgr_icon_width")
+	local upgr_h = ini_sys:r_float_ex(sec,"upgr_icon_height")
+	if not (upgr_x and upgr_y and upgr_w and upgr_h) then
+		self:setup_icon(element, index, sec, pos_x, pos_y, w, h)
+		return pos_x,pos_y,_w,_h
+	end
+	
+	-- Get upgrade dds
+	local upgr_path = ini_sys:r_string_ex(sec,"upgr_icon_path")
+	upgr_path = upgr_path or IsWeapon(obj) and "ui\\ui_actor_weapons" or "ui\\ui_actor_armor"
+	
+	-- Decide if it should use normal icon instead
+	local use_ico = false
+	local t = {}
+	if IsWeapon(obj) then
+		for i=1,#upgr_chk["weapon"] do
+			t = upgr_chk["weapon"][i]
+			if (t.x == upgr_x) and (t.y == upgr_y) and (t.w == upgr_w) and (t.h == upgr_h) then
+				use_ico = true
+				break
+			end
+		end
+	elseif IsOutfit(obj) then
+		for i=1,#upgr_chk["outfit"] do
+			t = upgr_chk["outfit"][i]
+			if (t.x == upgr_x) and (t.y == upgr_y) and (t.w == upgr_w) and (t.h == upgr_h) then
+				use_ico = true
+				break
+			end
+		end
+	end
+	if use_ico then
+		self:setup_icon(element, index, sec, pos_x, pos_y, w, h)
+		return pos_x,pos_y,_w,_h
+	end
+	
+	local ico = {}
+	ico.x1 = upgr_x
+	ico.y1 = upgr_y
+	ico.x2 = upgr_x + upgr_w
+	ico.y2 = upgr_y + upgr_h
+	ico.w = upgr_w
+	ico.h = upgr_h
+	
+	
+	element:InitTexture(upgr_path)
+	element:SetTextureRect(Frect():set(ico.x1, ico.y1, ico.x2, ico.y2))
+	element:SetStretchTexture(true)
+	
+	local ratio = ico.w/ico.h
+	local h, w
+	ico.w = ico.w * ico_size * ico_width
+	ico.h = ico.h * ico_size
+	
+	for i=1,2 do
+		local w_t, h_t = 0, 0
+		local resize = false
+		if (ico.w > _w) then -- if icon width is bigger than frame width
+			w_t = ico.w - _w
+			resize = true	
+		end 
+		if (ico.h > _h) then -- if icon height is bigger than frame height
+			h_t = ico.h - _h 
+			resize = true	
+		end 
+		
+		if resize then -- resize is required
+			if (w_t >= h_t) then -- if icon width is the big number (or square), use it as a base for resizing
+				w = _w
+				h = w / ratio
+			elseif (w_t < h_t) then -- if icon width is the big number, use it as a base for resizing
+				h = _h
+				w = h * ratio
+			end
+		else -- no resize
+			w = ico.w
+			h = ico.h
+		end
+	end
+	
+	local offset_x = (_w - w)/2
+	local offset_y = (_h - h)/2
+	element:SetWndSize(vector2():set(w , h))
+	element:SetWndPos(vector2():set(pos_x + offset_x , pos_y + offset_y))
+	
+	return pos_x,pos_y,_w,_h
+end
+
+function details_ui:setup_pic(element, index, tbl, pos_x, pos_y, w, h)
+	self.hint_pic_txt[index] = {}
+	self.hint_pic_txt[index].name = tbl.name
+	self.hint_pic_txt[index].desc = tbl.desc
+	
+	local pos_x,pos_y,_w,_h = self:setup_element(element,pos_x,pos_y,w,h)
+
+	element:InitTexture(tbl.icon)
+	--element:SetStretchTexture(true)
+	
+	return pos_x,pos_y,_w,_h
+end
+
+function details_ui:get_awr_part(num)
+	local txt = tostring(num)
+	local part = ((num == 1) and "barrel") or ((num == 2) and "trigger_components") or ((num == 3) and "bolt_carrier") or ((num == 4) and "bolt") or ((num == 5) and "gas_tube")
+	local section = "awr_" .. part .. "_" .. tostring(self.t["parts"][num]) .. "_good"
+	return section
+end

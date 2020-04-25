@@ -1,0 +1,98 @@
+<w>
+	<file name="ui\ui_empty">
+		<texture id="ui_button_empty_b" x="0" y="0" width="1" height="1" />
+		<texture id="ui_button_empty_d" x="0" y="0" width="1" height="1" />
+		<texture id="ui_button_empty_e" x="0" y="0" width="1" height="1" />
+		<texture id="ui_button_empty_h" x="0" y="0" width="1" height="1" />
+		<texture id="ui_button_empty_t" x="0" y="0" width="1" height="1" />
+		<texture id="ui_button_empty" x="0" y="0" width="1" height="1" />
+		<texture id="ui_button_empty_back" x="0" y="0" width="1" height="1" />
+	</file>
+	
+	<file name="ui\items\ui_battery_low_power">
+		<texture id="ui_battery_low_power" x="0" y="0" width="64" height="64"/>
+		<texture id="ui_battery_low_power_empty" x="0" y="63" width="1" height="1"/>
+	</file>
+	<file name="ui\items\ui_pda">
+		<texture id="ui_npc_pda_frame" x="0" y="0" width="829" height="570" />
+	</file>
+	
+	<file name="ui\items\ui_mutant_loot">
+		<texture id="ui_mutant_loot_frame" x="0" y="0" width="295" height="140" />
+	</file>
+	
+	<!-- Details -->
+	<file name="ui\items\ui_details">
+		<texture id="ui_itm_details" x="0" y="0" width="1024" height="768" />
+		<texture id="ui_itm_line" x="0" y="1008" width="732" height="16" />
+	</file>
+	
+	<!-- Craft -->
+	<file name="ui\items\ui_craft_tools_basic">
+		<texture id="ui_itm_basickit" x="0" y="0" width="737" height="578" />
+	</file>
+	<file name="ui\items\ui_craft_tools_advanced">
+		<texture id="ui_itm_advancedkit" x="0" y="0" width="737" height="578" />
+		<texture id="ui_craft_lines_2i" x="0" y="720" width="536" height="304" />
+	</file>
+	<file name="ui\items\ui_craft_tools_expert">
+		<texture id="ui_itm_expertkit" x="0" y="0" width="737" height="578" />
+		<texture id="ui_craft_lines_3i" x="0" y="720" width="536" height="304" />
+	</file>
+	<file name="ui\items\ui_craft_kit_ammo">
+		<texture id="ui_itm_ammokit" x="0" y="0" width="737" height="578" />
+	</file>
+	<file name="ui\items\ui_craft_kit_drug">
+		<texture id="ui_itm_drugkit" x="0" y="0" width="737" height="578" />
+	</file>
+	
+	<!-- Repair -->
+	<file name="ui\items\ui_repair_1">
+		<texture id="ui_itm_repair_1" x="0" y="0" width="1024" height="768"/>
+	</file>
+	<file name="ui\items\ui_repair_2">
+		<texture id="ui_itm_repair_2" x="0" y="0" width="1024" height="768"/>
+	</file>
+	<file name="ui\items\ui_repair_3">
+		<texture id="ui_itm_repair_3" x="0" y="0" width="1024" height="768"/>
+	</file>
+	<file name="ui\items\ui_repair_4">
+		<texture id="ui_itm_repair_4" x="0" y="0" width="1024" height="768"/>
+	</file>
+	<file name="ui\items\ui_repair_4">
+		<texture id="ui_itm_repair_5" x="0" y="0" width="1024" height="768"/>
+	</file>
+	
+	<!-- Cook -->
+	<file name="ui\items\ui_cook_0">
+		<texture id="ui_itm_cook" x="0" y="0" width="1024" height="768"/>
+	</file>
+	
+	<!-- Maps -->
+	<file name="ui\items\ui_map_main">
+		<texture id="ui_itm_map_frame" x="0" y="0" width="1024" height="768"/>
+	</file>
+	<file name="ui\items\ui_map_1">
+		<texture id="ui_itm_map_l08_yantar" x="0" y="0" width="711" height="504"/>
+		<texture id="ui_itm_map_l03_agroprom" x="0" y="504" width="711" height="504"/>
+	</file>
+	<file name="ui\items\ui_map_2">
+		<texture id="ui_itm_map_l02_garbage" x="0" y="0" width="711" height="504"/>
+		<texture id="ui_itm_map_jupiter" x="0" y="504" width="711" height="504"/>
+	</file>
+	<file name="ui\items\ui_map_3">
+		<texture id="ui_itm_map_zaton" x="0" y="0" width="711" height="504"/>
+		<texture id="ui_itm_map_l07_military" x="0" y="504" width="711" height="504"/>
+	</file>
+	<file name="ui\items\ui_map_4">
+		<texture id="ui_itm_map_k02_trucks_cemetery" x="0" y="0" width="711" height="504"/>
+		<texture id="ui_itm_map_l09_deadcity" x="0" y="504" width="711" height="504"/>
+	</file>
+	<file name="ui\items\ui_map_5">
+		<texture id="ui_itm_map_l10_red_forest" x="0" y="0" width="711" height="504"/>
+	</file>
+	
+	<file name="ui\items\ui_companion_inv">
+		<texture id="ui_companion_inventory" x="0" y="0" width="1024" height="768" />
+	</file>
+</w>

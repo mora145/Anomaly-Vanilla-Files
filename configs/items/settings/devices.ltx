@@ -1,0 +1,42 @@
+;-- Tronex
+;-- Device power consumption configs
+
+[settings]
+battery							   	= batteries_dead
+flashlight							= device_flashlight
+geiger								= detector_geiger
+
+condition_limit 					= 0.09
+condition_zero 						= 0.0001
+condition_full 						= 0.9999
+nightvision_power_consumption		= 0.000025		;-- condition drain on each update for headlamp when NV is active
+
+;-- power_consumption = the amount of power consumed from the device per update (percentage)
+;-- the power on device is represented by condition, so all usable devices must have condition enabled as you see in these sections
+[power_consumption]
+device_pda_1                       = 0.00001
+device_pda_2                       = 0.000015
+device_pda_3                       = 0.00002
+itm_pda_common                     = 0.00001
+itm_pda_uncommon                   = 0.00001
+itm_pda_rare                       = 0.00001
+detector_anomaly                   = 0.00001
+detector_radio                     = 0.00001
+detector_geiger                    = 0.00001
+detector_simple                    = 0.00001
+detector_advanced                  = 0.00001
+detector_elite                     = 0.00002
+detector_scientific                = 0.00002
+device_torch_dummy                 = 0.00001
+device_torch_nv_1                  = 0.00001
+device_torch_nv_2                  = 0.00001
+device_torch_nv_3                  = 0.00001
+device_flashlight                  = 0.000004
+
+;-- These items will get 0 condition on unpacking their batteries
+[zero_con_devices]	
+;detector_simple
+;detector_advanced
+;detector_elite
+;detector_scientific
+;device_flashlight

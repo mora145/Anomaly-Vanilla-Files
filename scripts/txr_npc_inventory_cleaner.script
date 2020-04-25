@@ -1,0 +1,90 @@
+--[[
+	By tdef
+	2019/7/29
+	Auto inventory cleaner for common NPCs (once each x days)
+--]]
+
+local num_of_days = 3
+local enable_debug = false
+
+
+function printl(frmt, ...)
+	if enable_debug then
+		printf(strformat('--inventory cleaner: ' .. frmt, ...))
+	end
+end
+
+function actor_on_first_update()
+	local passed = game.get_game_time():diffSec(level.get_start_time())
+	local days = math.floor(passed / 86400)
+	local old = utils.load_var(db.actor, 'next_clean', num_of_days)
+	
+	if days <= old then
+		printl('cleaning skipped')
+		return
+	end
+	
+	printl('cleaning started')
+	
+	utils.save_var(db.actor, 'next_clean', days + num_of_days)
+	
+	local sim = alife()
+	local se_actor = sim:actor()
+	local to_clean = {}
+	local sid
+	
+	-- get id of npc to clean
+	for id in pairs(SIMBOARD.squads) do
+		local se_sq = sim:object(id)
+
+		if se_sq
+		and (not is_squad_monster[se_sq.player_id])
+		and (not simulation_objects.is_on_the_same_level(se_sq, se_actor))
+		and (not simulation_objects.is_on_the_linked_level(se_sq, se_actor))
+		then
+			sid = get_story_se_object(se_sq:section_name())
+			if (sid) then
+				printl('story squad spotted (%s) [%s]', id, sid:name())
+			else
+				for k in se_sq:squad_members() do
+					sid = get_object_story_id(k.id)
+					if (sid) then
+						printl('story npc spotted (%s) [%s]', k.id, sid)
+					else
+						to_clean[k.id] = true
+					end
+				end
+			end
+		end
+	end
+	
+	-- remove items inside npc
+	local itms_anim = itms_manager.itms_anim
+	local itms_keep = death_manager.item_by_story_id or {}
+	for i=1, 65534 do
+		local se = sim:object(i)
+		if se and se.parent_id and to_clean[se.parent_id] then
+			local sec = se:section_name()
+			local cls_id = se:clsid()
+			
+			if (not (ini_sys:r_bool_ex(sec,"quest_item")))       -- quest items
+			and (not itms_anim[sec])                             -- anim items
+			and (not itms_keep[sec])                             -- keep items from death manager
+			and (not get_object_story_id(i))                     -- items with story id (extra protection)
+			and (not IsWeapon(nil,cls_id))                       -- weapons
+			and (not IsAmmo(nil,cls_id))                         -- ammo
+			and (not IsGrenade(nil,cls_id))                      -- grenades
+			and (not IsArtefact(nil,cls_id))                     -- artefacts
+			then
+				printl('releasing %s from %s', se:name(), se.parent_id)
+				sim:release(se,true)
+			else
+				printl('keeping %s on %s', se:name(), se.parent_id)
+			end
+		end
+	end
+end
+
+function on_game_start()
+	RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
+end

@@ -1,0 +1,363 @@
+
+local w_unit = game.translate_string("st_kg")
+local mf,mc,sf,uc
+local clr_r,clr_2,clr_d,clr_w,clr_o
+
+function printl(frmt, ...)
+	-- printf(strformat('-ui_companion_inv log: ' .. frmt, ...))
+end
+
+
+--================================< Companion Inventory UI >=====================================--
+local INPUT_DISABLED = false
+local DELAY = 0.1
+function RestoreAndRefresh(self)
+	
+	self.highlight_player = nil
+	self.highlight_comp = nil
+	local act_inv = txr_companion_inv.get_inventory_table_actor_ordered()
+	local com_inv = txr_companion_inv.get_inventory_table_npc_ordered(self.companion_id)
+	self:InitInventoryCells(act_inv, self.scroll_inv_player, self.cells_player, "player_inv")
+	self:InitInventoryCells(com_inv, self.scroll_inv_comp, self.cells_comp, "comp_inv")
+	self:UpdateWeight()
+	
+	INPUT_DISABLED = false
+	return true
+end
+
+class "comp_inv_ui" (CUIScriptWnd)
+
+function comp_inv_ui:__init(comp_id,comp_icon) super()
+	self.companion_id = comp_id
+	self.companion_icon = comp_icon
+	
+	self.highlight_player = nil
+	self.highlight_comp = nil
+	
+	self.input_disabled = false
+	self.delay = 0.1
+	self.w_table = {}
+	self.overweight = nil -- set by first UpdateWeight
+	
+	clr_r = txr_utils.get_clr("d_red")
+	clr_2 = txr_utils.get_clr("ui_gray_1")
+	clr_d = txr_utils.get_clr("ui_gray_2")
+	clr_w = txr_utils.get_clr("pda_white")
+	clr_o = txr_utils.get_clr("d_orange")
+	mf = math.floor
+	mc = math.ceil
+	sf = string.find
+	uc = utils.clamp
+	
+	txr_actor_effects.toggle_active_slot(0) -- hide active item
+	
+	self:InitControls()
+	self:InitCallBacks()
+	
+	txr_utils.play_sound("interface\\inv_open")
+end
+
+function comp_inv_ui:__finalize()
+end
+
+function comp_inv_ui:InitControls()
+	self:SetWndRect(Frect():set(0,0,1024,768))
+	self:SetAutoDelete(true)
+	self:Enable(true)
+	
+	self.xml				= CScriptXmlInit()
+	local xml = self.xml
+	xml:ParseFile("ui_companion_inv.xml")
+	
+	self.dialog = xml:InitStatic("companion_inv:background", self)
+	
+	-- Text
+	self.txt_menu = xml:InitTextWnd("companion_inv:cap_menu", self.dialog)
+	
+	self.txt_player_name = xml:InitTextWnd("companion_inv:cap_player_name", self.dialog)
+	self.txt_comp_name = xml:InitTextWnd("companion_inv:cap_comp_name", self.dialog)
+	self.txt_player_weight = xml:InitTextWnd("companion_inv:cap_player_weight", self.dialog)
+	self.txt_comp_weight = xml:InitTextWnd("companion_inv:cap_comp_weight", self.dialog)
+
+	-- Inventory Cells
+	xml:InitStatic("companion_inv:b_player_inv", self.dialog)
+	xml:InitStatic("companion_inv:b_comp_inv", self.dialog)
+	self.scroll_inv_player = xml:InitScrollView("companion_inv:scroll_inv_player", self.dialog)
+	self.scroll_inv_comp = xml:InitScrollView("companion_inv:scroll_inv_comp", self.dialog)
+	
+	-- Icon
+	self.pic_player_icon = xml:InitStatic("companion_inv:icon_player", self.dialog)
+	self.pic_comp_icon = xml:InitStatic("companion_inv:icon_comp", self.dialog)
+	
+	-- Button ok
+	--self.btn_ok = xml:Init3tButton("companion_inv:btn_ok", self.dialog)
+	--self:Register(self.btn_ok,"btn_ok")
+	
+	-- Hint Window
+	self.hint_wnd = xml:InitFrame("hint_wnd:background",self)
+	self.hint_wnd:SetAutoDelete(false)
+	self.hint_wnd_text = xml:InitTextWnd("hint_wnd:text",self.hint_wnd)
+	self.hint_wnd:Show(false)
+	
+	-- Message Window 
+	self.msg_wnd = xml:InitFrame("hint_wnd:background",self)
+	self.msg_wnd:SetAutoDelete(false)
+	self.msg_wnd_text = xml:InitTextWnd("hint_wnd:text",self.msg_wnd)
+	self.msg_wnd_text:SetTextAlignment(2)
+	
+	self.msg_wnd:Show(false)
+	self.msg_wnd:SetColor(GetARGB(255,0,0,0))
+	
+	self:UpdateNames()
+	self:UpdateWeight()
+	
+	self.cells_player = {}
+	self.cells_comp = {}
+	local act_inv = txr_companion_inv.get_inventory_table_actor_ordered()
+	local com_inv = txr_companion_inv.get_inventory_table_npc_ordered(self.companion_id)
+	self:InitInventoryCells(act_inv, self.scroll_inv_player, self.cells_player, "player_inv")
+	self:InitInventoryCells(com_inv, self.scroll_inv_comp, self.cells_comp, "comp_inv")
+end
+
+function comp_inv_ui:InitCallBacks()
+	self:AddCallback("btn_ok"     , ui_events.BUTTON_CLICKED, self.OnCancel, self)
+	self:AddCallback("player_inv", ui_events.BUTTON_CLICKED, self.OnInvClicked_player, self)
+	self:AddCallback("comp_inv"  , ui_events.BUTTON_CLICKED, self.OnInvClicked_comp, self)
+end
+
+function comp_inv_ui:Update()
+	CUIScriptWnd.Update(self)
+	
+	-- Warning messages timer 
+	if (self.msg_wnd_timer and time_global() > self.msg_wnd_timer) then 
+		self.msg_wnd_timer = nil
+		self.msg_wnd:Show(false)
+	end
+	
+	for k1,v1 in pairs(self.cells_player) do
+		if (v1.btn and v1.btn:IsCursorOverWindow()) then
+			local name = ui_item.get_sec_name(v1.sec)
+			local str = clr_w .. name .. " \\n \\n"
+			str = str .. clr_o .. " • " .. clr_d .. game.translate_string("ui_total_weight") .. ": " .. clr_o .. tostring(v1.weight) .. " " .. w_unit
+			self:SetHint(str)
+			self.highlight_player = k1
+			return
+		end
+	end
+	
+	for k1,v1 in pairs(self.cells_comp) do
+		if (v1.btn and v1.btn:IsCursorOverWindow()) then
+			local name = ui_item.get_sec_name(v1.sec)
+			local str = clr_w .. name .. " \\n \\n"
+			str = str .. clr_o .. " • " .. clr_d .. game.translate_string("ui_total_weight") .. ": " .. clr_o .. tostring(v1.weight) .. " " .. w_unit
+			self:SetHint(str)
+			self.highlight_comp = k1
+			return
+		end
+	end
+	
+	self.hint_wnd:Show(false)
+end 
+
+function comp_inv_ui:SetMsg(text,tmr)
+	if (text == "") then 
+		return 
+	end
+	self.msg_wnd:Show(true)
+	self.msg_wnd_text:SetText(text)
+	self.msg_wnd_text:AdjustHeightToText()
+	self.msg_wnd_text:SetWndSize(vector2():set(820,self.msg_wnd_text:GetHeight()+10))
+	self.msg_wnd_text:SetWndPos(vector2():set(0,20))
+	
+	self.msg_wnd:SetWndSize(vector2():set(820,self.msg_wnd_text:GetHeight()+44))
+	self.msg_wnd:SetWndPos(vector2():set(0,80))
+
+	self.msg_wnd_timer = time_global() + 1000*tmr
+end
+
+function comp_inv_ui:SetHint(text,pos)
+	if (text == "") then
+		return
+	end
+	self.hint_wnd:Show(true)
+	self.hint_wnd_text:SetText(text)
+	self.hint_wnd_text:AdjustHeightToText()
+	self.hint_wnd:SetWndSize(vector2():set(self.hint_wnd:GetWidth(),self.hint_wnd_text:GetHeight()+44))
+	
+	pos = pos or GetCursorPosition()
+	pos.y = pos.y - self.hint_wnd:GetHeight()
+	pos.x = pos.x - self.hint_wnd:GetWidth()
+	self.hint_wnd:SetWndPos(pos)
+	
+	FitInRect(self.hint_wnd,Frect():set(0,0,1024,768),0,100)
+end
+
+
+--------------------------------------------------------
+function comp_inv_ui:UpdateNames()
+	local function GetName(id)
+		local se_obj = alife_object(id)
+		if se_obj then
+			return se_obj:character_name()
+		end
+		return ""
+	end
+
+	local id = self.companion_id
+	self.txt_player_name:SetText(GetName(0))
+	self.txt_comp_name:SetText(GetName(id))
+	
+	self.pic_player_icon:InitTexture(db.actor:character_icon())
+	self.pic_comp_icon:InitTexture(self.companion_icon)
+end
+
+function comp_inv_ui:UpdateWeight()
+	local str = ""
+	local com_id = self.companion_id
+	local ow, total, maxw = txr_utils.is_npc_overweight(com_id)
+	self.overweight = ow
+	
+	local clr = ow and clr_r or clr_2
+	str = clr .. tostring(utils.round(total,2)) .. " / " .. tostring(maxw) .. " " .. w_unit
+	self.txt_comp_weight:SetText(str)
+	
+	local tot_a = 0
+	local function fill_list(actor,obj)
+		if obj then 
+			local sec = obj:section()
+			local weight = ini_sys:r_float_ex(sec,"inv_weight")
+			if not weight then 
+				weight = 0
+			end
+			tot_a = tot_a + weight
+		end
+	end
+	db.actor:iterate_inventory(fill_list,db.actor)
+	
+	str = clr_2 .. tostring(utils.round(tot_a,2)) .. " " .. w_unit
+	self.txt_player_weight:SetText(str)
+end
+
+function comp_inv_ui:InitInventoryCells(s_table, s_scroll, s_cells, callback)
+	local xml = self.xml
+
+	local function count_grids_num(t)
+		local cnt = 0
+		for _,v in pairs(t) do
+			local sec = v[2]
+			local w = ini_sys:r_float_ex(sec,"inv_grid_width")
+			local h = ini_sys:r_float_ex(sec,"inv_grid_height")
+			cnt = cnt + (w * h)
+		end
+		return cnt
+	end
+	
+	s_scroll:Clear()
+	empty_table(s_cells)
+	
+	local _st = xml:InitStatic("companion_inv:inv_form", nil)
+	
+	local grid = xml:InitStatic("inv_grid", nil)
+	local grid_w = grid:GetWidth()
+	local grid_h = grid:GetHeight()
+	local tot_grid_w = math.floor(_st:GetWidth() / grid_w)
+	local tot_grid_h = math.floor(_st:GetHeight() / grid_h)
+	local tot_grid_num = math.max( count_grids_num(s_table) , (tot_grid_w * tot_grid_h))
+	local tot_grid_ind = {}
+	for i=1,tot_grid_num do
+		local row = mc(i/tot_grid_w)
+		tot_grid_ind[row] = tot_grid_ind[row] or {}
+		tot_grid_ind[row][#tot_grid_ind[row] + 1] = true
+	end
+
+	for _,v in pairs(s_table) do
+		local k = v[1]
+		local w = ini_sys:r_float_ex(v[2],"inv_grid_width")
+		local h = ini_sys:r_float_ex(v[2],"inv_grid_height")
+		s_cells[k] = {}
+		s_cells[k].ico_tmp = xml:InitStatic("inv_grid", _st)
+		s_cells[k].btn = xml:Init3tButton("inv_btn_" .. tostring(w) .. "_" .. tostring(h), _st)
+		s_cells[k].ico = xml:InitStatic("inv_grid", _st)
+		s_cells[k].sec = v[2]
+		
+		local weight = ini_sys:r_float_ex(v[2],"inv_weight")
+		if itms_manager.is_multi_use(nil,v[2]) then
+			local obj = level.object_by_id(k)
+			if obj then
+				local empty_weight = ini_sys:r_float_ex(v[2],"empty_weight")
+				local max_weight = ini_sys:r_float_ex(v[2],"max_uses")
+				weight = ((obj:get_remaining_uses()/max_weight) * (weight - empty_weight)) + empty_weight
+			end
+		end
+		
+		s_cells[k].weight = weight
+		
+		tot_grid_h = txr_utils.set_grid_element(
+			{ id = k , sec = v[2] , g_w = grid_w , g_h = grid_h , w = w , h = h , g_row = tot_grid_w },
+			tot_grid_ind,
+			s_cells[k].btn, s_cells[k].ico, s_cells[k].ico_tmp
+		)
+		txr_utils.set_up_icon(v[2], nil, s_cells[k].ico_tmp, s_cells[k].ico)
+		self:Register(s_cells[k].btn, callback)
+	end
+	
+	_st:SetWndSize(vector2():set(_st:GetWidth(),tot_grid_h * grid_h))
+	s_scroll:AddWindow(_st, true)
+	_st:SetAutoDelete(false)
+end
+
+
+---------------< Callbacks >---------------
+function comp_inv_ui:OnInvClicked_player()
+
+	if INPUT_DISABLED or self.overweight then return end
+	
+	if not self.highlight_player then 
+		INPUT_DISABLED = false
+		return 
+	end
+	INPUT_DISABLED = true
+	-- printf('clicked on %s',selected.id)
+	
+	local com_id = self.companion_id
+	txr_companion_inv.give_item(self.highlight_player, com_id)
+	
+	CreateTimeEvent(0, "input_blocker", DELAY, RestoreAndRefresh, self)
+	-- self:LoadItemList()
+end
+function comp_inv_ui:OnInvClicked_comp()
+
+	if INPUT_DISABLED then return end
+	
+	if not self.highlight_comp then 
+		INPUT_DISABLED = false
+		return 
+	end
+	INPUT_DISABLED = true
+	
+	-- printf('clicked on %s',selected.id)
+	
+	local com_id = self.companion_id
+	txr_companion_inv.take_item(self.highlight_comp, com_id)
+	
+	CreateTimeEvent(0,"input_blocker",DELAY, RestoreAndRefresh,self)
+end
+
+function comp_inv_ui:OnCancel()
+	txr_utils.play_sound("interface\\inv_close")
+	
+	self:HideDialog()
+end
+
+function comp_inv_ui:OnKeyboard(dik, keyboard_action)
+	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
+	if (res == false) then
+		local bind = dik_to_bind(dik)
+		if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+			if dik == DIK_keys.DIK_ESCAPE then
+				self:OnCancel()
+			end
+		end
+	end
+	return res
+end

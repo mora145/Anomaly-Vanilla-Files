@@ -1,0 +1,422 @@
+
+-- =======================================================================================
+-- Remade by Tronex
+-- Last modification: 2019/2/25
+-- Repair Kits UI
+-- =======================================================================================
+
+local mf,mc,sf,uc
+local clr_g,clr_y,clr_o,clr_r,clr_b,clr_b1,clr_b2,clr_p
+local degrade_factor = 0.2
+
+
+--=======================================< Crafting UI >=======================================--
+class "repair_ui" (CUIScriptWnd)
+
+function repair_ui:__init(owner,obj,section) super()
+	self.owner = owner
+	self.section = section
+	self.obj = obj
+	
+	-- Reload settings
+	mf = math.floor
+	mc = math.ceil
+	sf = string.find
+	uc = utils.clamp
+	clr_g = txr_utils.get_clr("d_green")
+	clr_y = txr_utils.get_clr("yellow")
+	clr_o = txr_utils.get_clr("d_orange")
+	clr_r = txr_utils.get_clr("d_red")
+	clr_b = txr_utils.get_clr("d_cyan")
+	clr_b1 = txr_utils.get_clr("pda_blue")
+	clr_b2 = txr_utils.get_clr("d_blue")
+	clr_p = txr_utils.get_clr("d_purple")
+
+	-- Selected item
+	self.highlight = {}
+	self.inv_obj = {} 
+	
+	self.repair_frame = ini_sys:r_string_ex(section,"repair_ui") or "ui_itm_repair_1"
+	self.use_condition = ini_sys:r_bool_ex(section,"use_condition") or false
+	self.min_condition = ini_sys:r_float_ex(section,"repair_min_condition") or 0
+	self.max_condition = ini_sys:r_float_ex(section,"repair_max_condition") or 0
+	self.add_condition = ini_sys:r_float_ex(section,"repair_add_condition") or 0
+	self.part_bonus = ini_sys:r_float_ex(section,"repair_part_bonus") or 0
+	self.use_parts = ini_sys:r_bool_ex(section,"repair_use_parts") or false
+	self.repair_type = ini_sys:r_string_ex(section,"repair_type") or "all" 
+	self.repair_only = alun_utils.parse_list(ini_sys,section,"repair_only",true)
+	self.parts_multi = ini_sys:r_float_ex(section,"repair_parts_multi") or 1
+	self.parts_sections = alun_utils.parse_list(ini_sys,section,"repair_parts_sections",true)
+	self.parts_match = ini_sys:r_bool_ex(section,"repair_parts_match",false)
+	self.use_actor_effects = ini_sys:r_bool_ex(section,"repair_use_actor_effects",false)
+	self.con_val = {}
+	
+	txr_actor_effects.toggle_active_slot(0) -- hide active item
+	
+	self:InitControls()
+	self:InitCallBacks()
+	
+	-- Play sound
+	if (self.repair_frame == "ui_itm_repair_1") or (self.repair_frame == "ui_itm_repair_2") then
+		txr_utils.play_sound("interface\\inv_zipper_open")
+	else
+		txr_utils.play_sound("interface\\inv_briefcase_light_open")
+	end
+
+end
+
+function repair_ui:__finalize()
+end
+
+function repair_ui:InitControls()
+	self:SetWndRect			(Frect():set(0,0,1024,768))
+	self:SetAutoDelete(true)
+	
+	self.xml				= CScriptXmlInit()
+	local xml = self.xml
+	xml:ParseFile			("ui_items_repair.xml")
+
+	self.dialog					= xml:InitStatic("repair:background", self)
+	self.cap_menu 					= xml:InitTextWnd("repair:cap_tab" , self.dialog)
+	self.inv = {}
+	
+	self.cap = {}
+	self.b_inv = {}
+	self.b_item = {}
+	self.list = {} -- List of items
+	self.box_item = {} -- Item's Icon
+	self.box_item_temp = {} -- temp item
+	self.text_item = {} -- Item's Name
+	self.con_txt = {}
+	self.scroll_inv = {}
+	local j = self.use_parts and 2 or 1
+	for i=1,j do
+		self.cap[i] = xml:InitStatic("repair:cap_repair_" .. tostring(i),self.dialog)
+		self.b_inv[i] = xml:InitStatic("repair:back_inv_" .. tostring(i) , self.dialog)
+		self.b_item[i] = xml:InitStatic("repair:back_item_" .. tostring(i) , self.dialog)
+		self.box_item[i] = xml:InitStatic("repair:box_item_" .. tostring(i) , self.dialog)
+		self.box_item_temp[i] = xml:InitStatic("repair:box_item_" .. tostring(i) , self.dialog)
+		self.text_item[i] = xml:InitTextWnd("repair:text_item_" .. tostring(i) , self.dialog)
+		self.con_txt[i] = xml:InitTextWnd("repair:con_item_" .. tostring(i) , self.dialog)
+		self.scroll_inv[i] = xml:InitScrollView("repair:scrollbar_inv_" .. tostring(i), self.dialog)
+		self.inv[i] = {}
+	end
+	self.con_txt_base = xml:InitTextWnd("repair:con_item_base" , self.dialog)
+	self.con_txt_new = xml:InitTextWnd("repair:con_item_1_new" , self.dialog)
+	
+	-- Main icon
+	self.box_item_main = xml:InitStatic("repair:pic_item_main" , self.dialog)
+	self.box_item_main_temp = xml:InitStatic("repair:pic_item_main" , self.dialog)
+	txr_utils.set_up_upgr_icon(self.obj, self.section, self.box_item_main, self.box_item_main_temp)
+	
+	-- Main Buttons
+	self.btn_repair = xml:Init3tButton("repair:btn_repair", self.dialog)
+	self:Register(self.btn_repair,"btn_repair")
+	self.btn_repair:Enable(false)
+	
+	self.btn_cancel = xml:Init3tButton("repair:btn_back", self.dialog)
+	self:Register(self.btn_cancel,"btn_cancel")
+	
+	-- Hint Window
+	self.hint_wnd = xml:InitFrame("hint_wnd:background",self)
+	self.hint_wnd:SetAutoDelete(false)
+	self.hint_wnd_text = xml:InitTextWnd("hint_wnd:text",self.hint_wnd)
+	self.hint_wnd:Show(false)
+	
+	-- Message Window 
+	self.msg_wnd = xml:InitFrame("hint_wnd:background",self)
+	self.msg_wnd:SetAutoDelete(false)
+	self.msg_wnd_text = xml:InitTextWnd("hint_wnd:text",self.msg_wnd)
+	self.msg_wnd_text:SetTextAlignment(2)
+	
+	self.msg_wnd:Show(false)
+	self.msg_wnd:SetColor(GetARGB(255,0,0,0))
+	
+	
+	self.cap_menu:SetText(ui_item.get_sec_name(self.section))
+	self:InitInventory(1)
+end
+
+local ItemListSec_2 = {} -- to show only one copy of bonus items
+local inv = {}
+function repair_ui:InitInventory(n)
+	local xml = self.xml
+	empty_table(inv)
+
+	local function search_1(temp, obj)
+		local sec = obj:section()
+		local main_section = ini_sys:r_string_ex(sec,"repair_type") or sec
+		if (self.repair_only and self.repair_only[main_section]) then
+			local con = math.ceil(obj:condition() * 100)
+			if (con and con >= (self.min_condition * 100) and con <= self.max_condition * 100) then
+				local w = ini_sys:r_float_ex(sec,"inv_grid_width")
+				local h = ini_sys:r_float_ex(sec,"inv_grid_height")
+				inv[obj:id()] = { sec = sec , con = con , w = w , h = h }
+			end
+		end
+	end
+	
+	local function search_2(temp, obj)
+		local sec = obj:section()
+		if (not ItemListSec_2[sec]) and (obj) and (obj:id() ~= self.inv_obj[1]:id()) and (obj:id() ~= self.obj:id()) then
+			ItemListSec_2[sec] = true
+			
+			if (self.parts_match and sec == self.inv_obj[1]:section()) then
+				local part_bonus = obj:condition()
+				part_bonus = (dxr_achievements.has_achievement("mechanized_warfare")) and (part_bonus + 0.02) or part_bonus
+				part_bonus = uc(math.floor(part_bonus*100)*self.parts_multi , 0 , 100)
+				local w = ini_sys:r_float_ex(sec,"inv_grid_width")
+				local h = ini_sys:r_float_ex(sec,"inv_grid_height")
+				inv[obj:id()] = { sec = sec , con = part_bonus , w = w , h = h }
+			
+			elseif (self.parts_sections and self.parts_sections[sec]) then
+				local part_bonus = ini_sys:r_float_ex(sec,"repair_part_bonus") or self.part_bonus
+				part_bonus = (dxr_achievements.has_achievement("mechanized_warfare")) and (part_bonus + 0.02) or part_bonus
+				part_bonus = uc(math.floor(part_bonus*100)*self.parts_multi , 0 , 100)
+				local w = ini_sys:r_float_ex(sec,"inv_grid_width")
+				local h = ini_sys:r_float_ex(sec,"inv_grid_height")
+				inv[obj:id()] = { sec = sec , con = part_bonus , w = w , h = h }
+			end
+		end
+	end
+	
+	if (n == 1) then
+		db.actor:iterate_inventory(search_1,nil)
+	elseif self.inv_obj[1] then
+		self.highlight[2] = nil
+		self.inv_obj[2] = nil
+		empty_table(self.inv[2])
+		empty_table(ItemListSec_2)
+		db.actor:iterate_inventory(search_2,nil)
+	end
+	
+	local function count_grids_num(t)
+		local cnt = 0
+		for _,v in pairs(t) do
+			cnt = cnt + (v.w * v.h)
+		end
+		return cnt
+	end
+	
+	self.scroll_inv[n]:Clear()
+	local _st = xml:InitStatic("repair:inv_form_" .. tostring(n), nil)
+	
+	local grid = xml:InitStatic("inv_grid", nil)
+	local grid_w = grid:GetWidth()
+	local grid_h = grid:GetHeight()
+	local tot_grid_w = math.floor(_st:GetWidth() / grid_w)
+	local tot_grid_h = math.floor(_st:GetHeight() / grid_h)
+	local tot_grid_num = math.max( count_grids_num(inv) , (tot_grid_w * tot_grid_h))
+	local tot_grid_ind = {}
+	for i=1,tot_grid_num do
+		local row = mc(i/tot_grid_w)
+		tot_grid_ind[row] = tot_grid_ind[row] or {}
+		tot_grid_ind[row][#tot_grid_ind[row] + 1] = true
+	end
+
+	for k,v in pairs(inv) do
+		self.inv[n][k] = {}
+		self.inv[n][k].ico_tmp = xml:InitStatic("inv_grid", _st)
+		self.inv[n][k].btn = xml:Init3tButton("inv_btn_" .. tostring(v.w) .. "_" .. tostring(v.h), _st)
+		self.inv[n][k].ico = xml:InitStatic("inv_grid", _st)
+		self.inv[n][k].ico_s = xml:InitStatic("inv_grid", _st)
+		self.inv[n][k].txt = xml:InitTextWnd("inv_text", _st)
+		self.inv[n][k].con = v.con
+		
+		tot_grid_h = txr_utils.set_grid_element(
+			{ id = k , sec = v.sec , g_w = grid_w , g_h = grid_h , w = v.w , h = v.h , g_row = tot_grid_w },
+			tot_grid_ind,
+			self.inv[n][k].btn, self.inv[n][k].ico, self.inv[n][k].ico_s, self.inv[n][k].ico_tmp, self.inv[n][k].txt
+		)
+		txr_utils.set_up_icon(v.sec, nil, self.inv[n][k].ico_tmp, self.inv[n][k].ico, self.inv[n][k].ico_s)
+		self:Register(self.inv[n][k].btn, "button_inv_" .. tostring(n))
+		
+		local clr = ((n == 2) and clr_b1) or txr_utils.get_con_clr(v.con)
+		self.inv[n][k].txt:SetText(clr .. v.con)
+	end
+	
+	_st:SetWndSize(vector2():set(_st:GetWidth(),tot_grid_h * grid_h))
+	self.scroll_inv[n]:AddWindow(_st, true)
+	_st:SetAutoDelete(false)
+end
+
+function repair_ui:InitCallBacks()
+	self:AddCallback("btn_repair", ui_events.BUTTON_CLICKED, self.OnRepair, self)
+	self:AddCallback("btn_cancel", ui_events.BUTTON_CLICKED, self.OnCancel, self)
+	self:AddCallback("button_inv_1", ui_events.BUTTON_CLICKED, self.OnItemClicked_1, self)
+	self:AddCallback("button_inv_2", ui_events.BUTTON_CLICKED, self.OnItemClicked_2, self)
+end
+
+function repair_ui:Update()
+	CUIScriptWnd.Update(self)
+	
+	-- Warning messages timer 
+	if (self.msg_wnd_timer and time_global() > self.msg_wnd_timer) then 
+		self.msg_wnd_timer = nil
+		self.msg_wnd:Show(false)
+	end
+	
+	for i=1,#self.box_item do 
+		if (self.box_item[i] and self.box_item[i]:IsCursorOverWindow()) then
+			local str = ""
+			if (self.inv_obj[i]) then
+				local name = ui_item.get_obj_name(self.inv_obj[i])
+				local desc = ui_item.get_obj_desc(self.inv_obj[i])
+				str = "%c[0,200,200,200]" .. name .. "\\n \\n%c[0,140,140,140]" .. desc
+			end
+			self:SetHint(str)
+			return
+		end
+	end
+	
+	for k1,v1 in pairs(self.inv) do
+		for k2,v2 in pairs(v1) do
+			if (v2.btn and v2.btn:IsCursorOverWindow()) then
+				local obj = level.object_by_id(k2)
+				local name = ui_item.get_obj_name(obj)
+				local desc = ui_item.get_obj_desc(obj)
+				local str = "%c[0,200,200,200]" .. name .. "\\n \\n%c[0,140,140,140]" .. desc
+				self:SetHint(str)
+				self.highlight[k1] = obj
+				return
+			end
+		end
+	end
+	
+	self.hint_wnd:Show(false)
+end 
+
+function repair_ui:SetMsg(text,tmr)
+	if (text == "") then 
+		return 
+	end
+	self.msg_wnd:Show(true)
+	self.msg_wnd_text:SetText(text)
+	self.msg_wnd_text:AdjustHeightToText()
+	self.msg_wnd_text:SetWndSize(vector2():set(820,self.msg_wnd_text:GetHeight()+10))
+	self.msg_wnd_text:SetWndPos(vector2():set(0,20))
+	
+	self.msg_wnd:SetWndSize(vector2():set(820,self.msg_wnd_text:GetHeight()+44))
+	self.msg_wnd:SetWndPos(vector2():set(0,80))
+
+	self.msg_wnd_timer = time_global() + 1000*tmr
+end
+
+function repair_ui:SetHint(text,pos)
+	if (text == "") then
+		return
+	end
+	self.hint_wnd:Show(true)
+	self.hint_wnd_text:SetText(text)
+	self.hint_wnd_text:AdjustHeightToText()
+	self.hint_wnd:SetWndSize(vector2():set(self.hint_wnd:GetWidth(),self.hint_wnd_text:GetHeight()+44))
+	
+	pos = pos or GetCursorPosition()
+	pos.y = pos.y - self.hint_wnd:GetHeight()
+	pos.x = pos.x - self.hint_wnd:GetWidth()
+	self.hint_wnd:SetWndPos(pos)
+	
+	FitInRect(self.hint_wnd,Frect():set(0,0,1024,768),0,100)
+end
+
+
+---------------< Callbacks >---------------
+function repair_ui:OnItemClicked_1()
+	self.inv_obj[1] = self.highlight[1]
+	self:OnItemSelect(1)
+	if self.use_parts then
+		self:InitInventory(2)
+	end
+end
+function repair_ui:OnItemClicked_2()
+	self.inv_obj[2] = self.highlight[2]
+	self:OnItemSelect(2)
+end
+
+function repair_ui:OnItemSelect(n)
+	if not (self.inv_obj[1] and self.inv_obj[n]) then return end
+	
+	local sec = self.inv_obj[n]:section()
+	local id = self.inv_obj[n]:id()
+	local con = self.inv[n][id] and self.inv[n][id].con
+	if (not con) then return end
+	
+	-- Text (Name)
+	local name = ui_item.get_sec_name(sec)
+	self.text_item[n]:SetText(name)
+	
+	-- Text (Condition)
+	self.con_val[1] = math.ceil((self.inv_obj[1]:condition())*100)
+	self.con_val[2] = ((n == 2) and con) or 0
+	self.con_val[3] = math.floor((self.add_condition)*100)
+	self.con_val[4] = uc(self.con_val[1] + self.con_val[2] + self.con_val[3], 0, 100)
+	if itms_manager.is_part(self.inv_obj[1]) then
+		self.con_val[4] = txr_utils.get_static_cond(self.con_val[4])
+	end
+	
+	self.con_txt[1]:SetText(txr_utils.get_con_clr(self.con_val[1]) .. game.translate_string("st_ui_oldcon") .. ": +" .. self.con_val[1] .. "%")
+	self.con_txt[2]:SetText(clr_b1 .. game.translate_string("st_ui_bonus") .. ": +" .. self.con_val[2] .. "%")
+	self.con_txt_base:SetText(game.translate_string("st_ui_repair") .. ": +" .. self.con_val[3] .. "%")
+	self.con_txt_new:SetText(txr_utils.get_con_clr(self.con_val[4]) .. game.translate_string("st_ui_total") .. ": +" .. self.con_val[4] .. "%")
+	
+	-- Icon
+	txr_utils.set_up_icon(sec, nil, self.box_item_temp[n], self.box_item[n])
+
+	-- Reset supportive item when you choose main item
+	if (n == 1) and self.use_parts then
+		self.box_item[2]:InitTexture("ui\\ui_icon_equipment")
+		self.box_item[2]:SetTextureRect(Frect():set(0, 0, 0, 0))
+		self.text_item[2]:SetText("")
+		--self.con_txt[1]:SetText("")
+		--self.con_txt[2]:SetText("")
+		--self.con_txt_base:SetText("")
+	end
+	
+	self.btn_repair:Enable(true)
+end
+
+function repair_ui:OnRepair()
+
+	if not (self.inv_obj[1] and self.con_val[4]) then return end
+
+	self.inv_obj[1]:set_condition(self.con_val[4] / 100) -- Repair main item
+	if self.inv_obj[2] then
+		itms_manager.discharge(self.inv_obj[2]) -- Remove 1 use of the support item
+	end
+	
+	-- Remove 1 use of the repair kit
+	if itms_manager.is_multi_use(self.obj) then
+		itms_manager.discharge(self.obj) 
+	else
+		itms_manager.degrade(self.obj, degrade_factor)
+	end
+	
+	-- Hide dialog
+	self:HideDialog()
+	
+	-- Effect
+	if (self.use_actor_effects and txr_actor_effects) then
+		txr_actor_effects.play_item_fx(self.section.."_dummy")
+	end
+	
+	-- Increase Statistic
+	dxr_statistics.increment_statistic("self_repairs")
+end
+
+function repair_ui:OnCancel()
+	txr_utils.play_sound("interface\\inv_close")
+	self:HideDialog()
+end
+
+function repair_ui:OnKeyboard(dik, keyboard_action)
+	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
+	if (res == false) then
+		local bind = dik_to_bind(dik)
+		if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+			if dik == DIK_keys.DIK_ESCAPE then
+				self:OnCancel()
+			end
+		end
+	end
+	return res
+end

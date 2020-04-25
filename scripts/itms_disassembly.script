@@ -1,0 +1,546 @@
+
+--[[
+	Tronex
+	Item disassembly
+--]]
+
+
+local max_con = 0.999
+local min_con = 0.001
+
+local ini_parts
+local d_flag = false
+local d_key = "DIK_LMENU" -- Saftey key hold (Left Alt)
+local disassembly_chance 
+
+function init_settings()
+	ini_parts = itms_manager.ini_parts
+	disassembly_chance  = ini_parts:r_float_ex("settings","disassembly_chance") or 40
+end
+
+--=======================================< In-game menus >=======================================--
+function ui_menu(obj)
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	local sec = obj:section()
+	sec = ini_sys:r_string_ex(sec,"parent_section") or sec -- for weapons with scopes
+	local ignore = true
+	
+	if ini_parts:r_string_ex("nor_parts_list",sec)
+	or ini_parts:r_string_ex("con_parts_list",sec)
+	then
+		ignore = false
+	end
+	
+	if (string.find(sec, "(lead.-_box)",3)) then
+		return	
+	elseif (string.find(sec, "(af.-_iam)",3)) then
+		return
+	elseif (string.find(sec, "(af.-_aac)",3)) then
+		return
+	elseif (string.find(sec, "(af.-_aam)",3)) then
+		return
+	end
+	
+	if (not ignore) then
+		return game.translate_string("st_awr_disassembly_cloth")
+	end
+	return
+end
+
+function ui_menu_action(obj)
+	local chk = ui_options.get("control/general/disassembly_warning")
+	if chk and (not d_flag) then
+		SendMsg("success", "detail", "st_awr_ctrl")
+		return
+	end
+	
+	if IsWeapon(obj) then
+		disassembly_weapon(obj)
+	elseif IsOutfit(obj) or IsHeadgear(obj) then
+		disassembly_outfit(obj)
+	else
+		disassembly_item(obj)
+	end
+end
+
+
+--=======================================< Disassembly >=======================================--
+local function timer_disassembly_item(parts_tbl, parts_text, sec, con, name)
+	-- Send news
+	SendMsg("success", "weapon_ammo", "st_dis_text_11", name, game.translate_string("st_dis_text_9"), parts_text)
+
+	-- Give disassemble parts
+	for i=1,#parts_tbl do
+		if ini_sys:section_exist(parts_tbl[i]) then
+			if itms_manager.is_part(nil, parts_tbl[i]) and itms_manager.can_degrade(nil, parts_tbl[i]) then
+				local se_result = alife():create(parts_tbl[i], db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID, false)
+				local data_result = stpk_utils.get_item_data(se_result)
+				data_result.condition = get_suitable_part_con(sec, con)
+				stpk_utils.set_item_data(data_result,se_result)
+				alife():register(se_result)
+				--printf("/ Disassemble | inv_item_disassemble | Get new "true" part from disassembling: " .. parts_tbl[i])
+			else
+				txr_utils.create_inv_obj(parts_tbl[i])
+				--printf("/ Disassemble | inv_item_disassemble | Get new part from disassembling: " .. parts_tbl[i])
+			end
+		end
+	end
+	
+	-- Give battery
+	if itms_manager.is_device(nil,sec) and con and itms_manager.itm_battery and ini_sys:section_exist(itms_manager.itm_battery) then
+		local se_battery = alife():create(itms_manager.itm_battery, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+		if se_battery and se_battery.id then
+			txr_condition.add_con_to_process(se_battery.id, con)
+		end
+	end
+
+	return true
+end
+function disassembly_item(obj, obj_tool)
+	local id = obj:id()
+	local delay = txr_actor_effects.is_animations_on() and 3 or 0
+	local sec = obj:section()
+	local name = ui_item.get_sec_name(sec)
+	local con = obj:condition()
+	local itms_disassemble = itms_manager.itms_disassemble
+	
+	
+	-- Collect disassemble parts of our item
+	local parts = ini_parts:r_string_ex("nor_parts_list",sec)
+	if (not parts) then return end
+	local parts_tbl = alun_utils.str_explode(parts,",")
+	
+	-- Add extra part on achievement
+	if (dxr_achievements.has_achievement("recycler")) and (math.random(1,100) <= 33) then
+		parts_tbl[#parts_tbl + 1] = parts_tbl[math.random(#parts_tbl)]
+	end
+	
+	local parts_text = ""
+	for i=1,#parts_tbl do
+		parts_text = parts_text .. "\\n- " .. ui_item.get_sec_name(parts_tbl[i])
+	end
+	if itms_manager.is_device(nil,sec) and con and (con > 0.1) then
+		parts_text = parts_text .. "\\n- " .. ui_item.get_sec_name(itms_manager.itm_battery)
+	end
+	
+	-- Collect disassemble tools (objects)
+	local diss_obj
+	for k,v in pairs (itms_disassemble) do
+		local diss_obj_tbl = txr_utils.collect_inv_obj(k,1)
+		diss_obj = diss_obj_tbl and diss_obj_tbl[1] or nil
+		if diss_obj then
+			break
+		end
+	end
+	if not (obj_tool or diss_obj) then 
+		news_manager.send_tip(db.actor, game.translate_string("st_news_dis_items"), nil, "swiss_knife", 6000)
+		return 
+	end
+
+	-- Degrade or Delete disassemble item
+	diss_obj = obj_tool or db.actor:object("leatherman_tool") or diss_obj
+	local diss_sec = diss_obj:section()
+	local degr_val = itms_disassemble[diss_sec]
+	itms_manager.degrade( diss_obj , degr_val )
+		
+	-- Discharge/Delete disassembled item
+	itms_manager.discharge( obj )
+	
+	-- Increase Statistic
+	dxr_statistics.increment_statistic("items_disassembled")
+	
+	-- Animation
+	txr_actor_effects.play_item_fx("disassemble_metal_fast")
+	
+	-- Process
+	CreateTimeEvent(0,"delay_disassembly" .. id, delay, timer_disassembly_item, parts_tbl, parts_text, sec, con, name)
+end
+
+local function timer_disassembly_weapon(result_details, result_conditions, result_details_names, get_ammo, name)
+
+	-- Creating cartridges
+	local a_name
+	if get_ammo and get_ammo[1] and get_ammo[2] then
+		a_name = string.format(game.translate_string("st_dis_text_4"), get_ammo[1], string.gsub(ui_item.get_sec_name(get_ammo[2]), "^(.*%s)(%d+)", "%2"))
+		--create_ammo(get_ammo[2],  db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID, get_ammo[1])
+	end
+
+	-- Send messages to the actor
+	if #result_details > 0 then
+		if get_ammo and get_ammo[1] and get_ammo[2] then
+			SendMsg('success', 'weapon_ammo', "st_dis_text_7", name, a_name, result_details_names)
+		else
+			SendMsg('success', 'weapon_ammo', "st_dis_text_7", name, game.translate_string('st_dis_text_9'), result_details_names)
+		end
+	else
+		SendMsg('fail', 'weapon', "st_dis_text_2", name)
+	end
+	
+	-- Creating parts in inventory
+	for i=1,#result_details do
+		if result_conditions[i] then
+			local se_result = alife():create(result_details[i], db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID, false)
+			local data_result = stpk_utils.get_item_data(se_result)
+			data_result.condition = utils.clamp( (result_conditions[i]/100) , min_con , max_con )
+			stpk_utils.set_item_data(data_result,se_result)
+			alife():register(se_result)
+		else
+			alife():create(result_details[i], db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+		end
+	end
+	
+	return true
+end
+function disassembly_weapon(obj, obj_tool)
+
+	-- Defines
+	local id = obj:id()
+	local se_obj = alife_object(id)
+	local sec = obj:section()
+	sec_p = ini_sys:r_string_ex(sec,"parent_section") or sec
+	local name = ui_item.get_sec_name(sec)
+	local con = obj:condition()
+	local parts = txr_condition.get_parts_con(obj, nil, true)
+	local spare_parts = alun_utils.collect_section(ini_parts,"weapons_spare_parts")
+	
+	local result_details = {}
+	local result_conditions = {}
+	local result_details_names = ""
+	local get_ammo = {}
+	local with_scope = nil
+	local delay = txr_actor_effects.is_animations_on() and 3 or 0
+	
+	-- If Multitool is missing, warn the player
+	if obj_tool and (obj_tool:section() ~= "leatherman_tool") then
+		SendMsg('fail', 'weapon', "st_dis_text_3", " ")
+		return
+	elseif not (db.actor:object("leatherman_tool")) then
+		SendMsg('fail', 'weapon', "st_dis_text_3", " ")
+		return
+	end
+	
+	-- Collect attachments
+	with_scope = txr_utils.has_scope(sec)
+	if with_scope then
+		with_scope = string.format('_%s', txr_utils.has_scope(sec))
+		table.insert(result_details, with_scope:sub(2))
+		sec = sec:gsub(with_scope, "")
+	end	
+	if (obj:weapon_scope_status() == 2) and (rx_utils.addon_attached(obj,"sc")) then
+		local scope_section = rx_utils.read_from_ini2(nil,sec,"scopes_sect","string",nil)
+		local scope = rx_utils.read_from_ini2(nil,scope_section,"scope_name","string",nil)
+		table.insert(result_details, scope)
+	end
+	if (obj:weapon_silencer_status() == 2) and (rx_utils.addon_attached(obj,"sl")) then
+		local sil = rx_utils.read_from_ini2(nil,sec,"silencer_name","string",nil)
+		table.insert(result_details, sil)
+	end	
+	if (obj:weapon_grenadelauncher_status() == 2) and (rx_utils.addon_attached(obj,"gl")) then
+		local gl = rx_utils.read_from_ini2(nil,sec,"grenade_launcher_name","string",nil)
+		table.insert(result_details, gl)
+	end
+	
+	-- Collect remaining ammo
+	local data = stpk_utils.get_weapon_data(se_obj)
+	if data.ammo_elapsed > 0 then
+		local ammos = alun_utils.parse_list(ini_sys, sec, "ammo_class") -- TODO: consider upgrades
+		get_ammo = { data.ammo_elapsed, ammos[data.ammo_type+1] }
+	end
+	
+	-- Unload mag and get ammo
+	obj:unload_magazine(true)
+	
+	-- Collect weapon parts
+	for k,v in pairs(parts) do
+		if (k ~= sec_p) and (math.random(100) <= (disassembly_chance + con*100)) then
+			local index = #result_details
+			result_details[index + 1] = k
+			result_conditions[index + 1] = itms_manager.is_part(nil, k) and txr_utils.get_static_cond(v) or v
+			result_details_names = result_details_names .. "\\n- " .. ui_item.get_sec_name(k)
+		end
+	end
+	
+	-- Collect weapon spare parts
+	local function disassembly_weapon_spare_parts(_sec, condition)
+		local single_handed = ini_sys:r_float_ex(_sec,"single_handed") or 1
+		local weight = ini_sys:r_float_ex(_sec,"inv_weight") or 2
+		local number,finale = 0,0
+		
+		number = math.floor(weight)
+		if (single_handed == 1) then number = 1 end
+		
+		for i=1,number do
+			if (math.random(100) < condition) then
+				finale = finale + 1
+			end
+		end
+		
+		return finale
+	end
+	
+	for i=1,#spare_parts do
+		local num = disassembly_weapon_spare_parts(sec, disassembly_chance/2)
+		if (num > 0) then
+			for j=1,num do
+				table.insert(result_details,spare_parts[i])
+				result_details_names = result_details_names .. "\\n- " .. ui_item.get_sec_name(spare_parts[i])
+			end
+		end
+	end
+	
+	-- Collect installed upgrades
+	local installed_upgrades = {}
+	local upgr_tools = {}
+	if se_obj then
+		copy_table(installed_upgrades, data.upgrades)
+	end
+		
+	for i=1,#installed_upgrades do
+		local prop = ini_sys:r_string_ex(installed_upgrades[i],"property")
+		local scheme = ini_sys:r_string_ex(installed_upgrades[i],"scheme_index")
+		if prop and scheme then
+			local pr = alun_utils.str_explode(prop,",")
+			local shm = alun_utils.str_explode(scheme,",")
+			local tool = txr_utils.get_upg_prop_tool(pr[1])
+			local num = (shm[1] or 1) + 1
+			
+			tool = tool and tool:gsub("%^d", tostring(num)) or nil
+			if tool then
+				table.insert(upgr_tools,tool)
+			end
+		end
+	end
+	
+	for i=1,#upgr_tools do
+		if math.random(100) < con*50 then
+			table.insert(result_details,upgr_tools[i])
+			result_details_names = result_details_names .. "\\n- " .. ui_item.get_sec_name(upgr_tools[i])
+		end
+	end
+	
+	-- Release weapon
+	if (se_obj) then
+		alife():release(se_obj,true)
+	end
+	
+	-- Degrade disassemble tool
+	local diss_obj = obj_tool or db.actor:object("leatherman_tool")
+	if diss_obj then
+		local diss_sec = diss_obj:section()
+		local diss_tools = itms_manager.itms_disassemble
+		local degr_val = diss_tools[diss_sec]
+		itms_manager.degrade( diss_obj , degr_val )
+	end
+
+	-- Increase Statistic
+	dxr_statistics.increment_statistic("items_disassembled")
+	txr_condition.clear_parts_con(id)
+	
+	-- Play animation
+	txr_actor_effects.play_item_fx("disassemble_metal_fast")
+	
+	-- Process
+	CreateTimeEvent(0,"delay_disassembly" .. id, delay, timer_disassembly_weapon, result_details, result_conditions, result_details_names, get_ammo, name)
+end
+
+local function timer_disassembly_outfit(result_details, result_conditions, result_details_names, name)
+
+	-- Send messages to the actor
+	if #result_details > 0  then
+		SendMsg('success', 'weapon_ammo', "st_dis_text_8", name, game.translate_string('st_dis_text_9'), result_details_names)
+	else
+		SendMsg('fail', 'weapon', "st_dis_text_10", name)
+
+	end
+	
+	table.sort(result_details)
+
+	-- Creating parts in inventory
+	for i=1,#result_details do
+		if result_conditions[i] then
+			local se_result = alife():create(result_details[i], db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID, false)
+			local data_result = stpk_utils.get_item_data(se_result)
+			data_result.condition = utils.clamp( (result_conditions[i]/100) , min_con , max_con )
+			stpk_utils.set_item_data(data_result,se_result)
+			alife():register(se_result)
+		else
+			alife():create(result_details[i], db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+		end
+	end
+
+	return true
+end
+function disassembly_outfit(obj, obj_tool)
+	-- Defines
+	local id = obj:id()
+	local sec = obj:section()
+	local name = ui_item.get_sec_name(sec)
+	local con = obj:condition()
+	local parts = txr_condition.get_parts_con(obj, nil, true)
+
+	local result_details = {}
+	local result_conditions = {}
+	local result_details_names = ""
+	local delay = txr_actor_effects.is_animations_on() and 3 or 0
+	local itms_disassemble = itms_manager.itms_disassemble
+	
+	-- Collect disassemble tools (objects)
+	local diss_obj
+	for k,v in pairs (itms_disassemble) do
+		local diss_obj_tbl = txr_utils.collect_inv_obj(k,1)
+		diss_obj = diss_obj_tbl and diss_obj_tbl[1] or nil
+		if diss_obj then
+			break
+		end
+	end
+	if not (obj_tool or diss_obj) then 
+		news_manager.send_tip(db.actor, game.translate_string("st_news_dis_items"), nil, "swiss_knife", 6000)
+		return 
+	end
+	
+	-- Collect outfit parts
+	for k,v in pairs(parts) do
+		if (k ~= sec) and (math.random(100) <= (disassembly_chance + con*100)) then
+			local index = #result_details
+			result_details[index + 1] = k
+			result_conditions[index + 1] = itms_manager.is_part(nil, k) and txr_utils.get_static_cond(v) or v
+			result_details_names = result_details_names .. "\\n- " .. ui_item.get_sec_name(k)
+		end
+	end
+	
+	-- Collect installed upgrades
+	local installed_upgrades = {}
+	local upgr_tools = {}
+	local se_obj = alife_object(id)
+	if se_obj then
+		local data = stpk_utils.get_item_data(se_obj)
+		copy_table(installed_upgrades, data.upgrades)
+	end
+		
+	for i=1,#installed_upgrades do
+		local prop = ini_sys:r_string_ex(installed_upgrades[i],"property")
+		local scheme = ini_sys:r_string_ex(installed_upgrades[i],"scheme_index")
+		if prop and scheme then
+			local pr = alun_utils.str_explode(prop,",")
+			local shm = alun_utils.str_explode(scheme,",")
+			local tool = txr_utils.get_upg_prop_tool(pr[1])
+			local num = (shm[1] or 1) + 1
+			
+			tool = tool and tool:gsub("%^d", tostring(num)) or nil
+			if tool then
+				table.insert(upgr_tools,tool)
+			end
+		end
+	end
+	
+	for i=1,#upgr_tools do
+		if math.random(100) < con*50 then
+			table.insert(result_details,upgr_tools[i])
+			result_details_names = result_details_names .. "\\n- " .. ui_item.get_sec_name(upgr_tools[i])
+		end
+	end
+	
+	-- Release outfit
+	if (se_obj) then
+		alife():release(se_obj,true)
+	end
+	
+	-- Degrade or Delete disassemble item
+	diss_obj = obj_tool or db.actor:object("leatherman_tool") or diss_obj
+	local diss_sec = diss_obj:section()
+	local degr_val = itms_disassemble[diss_sec]
+	itms_manager.degrade( diss_obj , degr_val )
+	
+	-- Increase Statistic
+	dxr_statistics.increment_statistic("items_disassembled")
+	txr_condition.clear_parts_con(id)
+	txr_disguise.clear_patch(id)
+	
+	-- Play animation
+	txr_actor_effects.play_item_fx("disassemble_cloth_fast")
+	
+	-- Process
+	CreateTimeEvent(0,"delay_disassembly" .. id, delay, timer_disassembly_outfit, result_details, result_conditions, result_details_names, name)
+end
+
+
+--=======================================< Utility >=======================================--
+
+function tool_action(obj, obj_tool)
+	local chk = ui_options.get("control/general/disassembly_warning")
+	if chk and (not d_flag) then
+		SendMsg("success", "detail", "st_awr_ctrl")
+		return
+	end
+	
+	if IsWeapon(obj) then
+		disassembly_weapon(obj, obj_tool)
+	elseif IsOutfit(obj) then
+		disassembly_outfit(obj, obj_tool)
+	else
+		disassembly_item(obj, obj_tool)
+	end
+end
+
+function get_suitable_part_con(sec, con) -- used for random part condition for normal items disassembly
+	local part_con = (math.random(100) < 50) and 50 or 75
+	if con and (con < 0.9) then
+		part_con = txr_utils.get_static_cond(con*100)
+	end
+	return (part_con/100)
+end
+
+function SendMsg(color, type_m, text, ...)
+	local t = {...}
+	local ico = "leatherman_tool"
+	
+	if color then
+		if color == 'success' then
+			s_color = txr_utils.get_clr("d_green")
+			e_color = txr_utils.get_clr("pda_white")
+		elseif color == 'fail' then
+			s_color = txr_utils.get_clr("d_red")
+			e_color = txr_utils.get_clr("pda_white")
+			--PlayFailSnd()
+		end
+	end
+	
+	if type_m then
+		if type_m == 'detail' then
+			news_manager.send_tip(db.actor, string.format(game.translate_string(text), s_color, e_color, t[1]), nil, ico, 6000)
+		elseif type_m == 'weapon' then
+			news_manager.send_tip(db.actor, string.format(game.translate_string(text), s_color, t[1], e_color, t[2]), nil, ico, 6000)
+		elseif type_m == 'weapon_ammo' then
+			news_manager.send_tip(db.actor, string.format(game.translate_string(text), s_color, t[1], e_color, t[2], t[3]), nil, ico, 6000)
+		elseif type_m == 'npc' then
+			news_manager.send_tip(db.actor, string.format(game.translate_string(text), s_color, t[1], t[2], e_color, t[3]), nil, ico, 6000)
+		end
+	end
+end
+
+function print_dbg()
+	
+end
+
+
+--=======================================< Callbacks >=======================================--
+local function on_key_press(key)
+	if (key == DIK_keys[d_key]) then
+		d_flag = true
+	end
+end
+
+local function on_key_release(key)
+	if (key == DIK_keys[d_key]) then
+		d_flag = false
+	end
+end
+
+function on_game_start()
+	init_settings()
+	
+	RegisterScriptCallback("on_key_press",on_key_press)
+	RegisterScriptCallback("on_key_release",on_key_release)
+end

@@ -1,0 +1,312 @@
+--[[
+
+	Tronex
+	2019/9/25
+	Craft recipes viewer
+	
+--]]
+
+class "recipe_ui" (CUIScriptWnd)
+function recipe_ui:__init(owner,section) super()
+	self.owner = owner
+	self.section = section
+	self.recipes = {}
+	self.toolkit = nil
+
+	self:InitControls()
+	self:InitCallBacks()
+	
+	self:LoadRecipes()
+	self:InitRecipes()
+
+	_G.KEYS_UNLOCK = false -- global keybinds lock
+end
+
+function recipe_ui:__finalize() end
+
+function recipe_ui:InitControls()
+	self:SetWndRect			(Frect():set(0,0,1024,768))
+	self:SetAutoDelete(true)
+	
+	self.xml				= CScriptXmlInit()
+	local xml = self.xml
+	xml:ParseFile			("ui_items_recipe.xml")
+	
+	self.dialog 	= xml:InitStatic("recipe:background", self)
+	
+	self.cap_shadow 	= xml:InitTextWnd("recipe:cap", self.dialog)
+	self.cap_shadow:SetText( ui_item.get_sec_name(self.section) )
+
+	self.cap 	= xml:InitTextWnd("recipe:cap", self.dialog)
+	self.cap:SetText( ui_item.get_sec_name(self.section) )
+	
+	local pos = self.cap:GetWndPos()
+	self.cap_shadow:SetWndPos(vector2():set(pos.x+1,pos.y+1))
+	self.cap_shadow:SetTextColor(GetARGB(255, 150, 150, 150))
+	
+	self.scroll = xml:InitScrollView("recipe:scrollbar", self.dialog)
+	
+	-- Hint Window
+	self.hint_wnd = xml:InitFrame("hint_wnd:background",self)
+	self.hint_wnd:SetAutoDelete(false)
+	self.hint_wnd_text = xml:InitTextWnd("hint_wnd:text",self.hint_wnd)
+	self.hint_wnd:Show(false)
+	
+	-- Message Window 
+	self.msg_wnd = xml:InitFrame("hint_wnd:background",self)
+	self.msg_wnd:SetAutoDelete(false)
+	self.msg_wnd_text = xml:InitTextWnd("hint_wnd:text",self.msg_wnd)
+	self.msg_wnd_text:SetTextAlignment(2)
+	
+	self.msg_wnd:Show(false)
+	self.msg_wnd:SetColor(GetARGB(255,0,0,0))
+end
+
+function recipe_ui:InitCallBacks()
+	--self:AddCallback("btn_ok", ui_events.BUTTON_CLICKED, self.OnCancel, self)
+end
+
+
+function recipe_ui:LoadRecipes()
+	
+	local ini_craft = itms_manager.ini_craft
+	
+	-- Less parts on achievement
+	local ach = 0
+	if (dxr_achievements.has_achievement("artificer_eagerness")) then
+		ach = 1
+	end
+
+	local ind = 1
+	while ini_craft:section_exist(tostring(ind)) do
+		local ind_str = tostring(ind)
+		local n = ini_craft:line_count(ind_str) or 0
+		for i=0, n-1 do
+			local result, id, value = ini_craft:r_line(ind_str , i , "", "")
+			id = string.sub(id,3)
+			if ini_sys:section_exist(id) then
+				local t = alun_utils.str_explode(value,",")
+				if ((#t == 6) or (#t == 8) or (#t == 10)) and (t[2] == self.section) then
+					local x = #self.recipes + 1
+					self.recipes[x] = {}
+					self.recipes[x].sec = id
+					self.toolkit = ui_workshop.workshop_toolkits[tonumber(t[1]) or 1]
+					if t[3] and t[4] then -- support item 1
+						if ini_sys:section_exist(tostring(t[3])) then
+							local amt = tonumber(t[4])
+							self.recipes[x][1] = {tostring(t[3]), (amt > 4) and (amt - ach) or amt}
+						else
+							printf("! Workshop UI craft | componenet section [%s] not found for [%s] recipe!", tostring(t[3]), id)
+						end
+					end
+					if t[5] and t[6] then -- support item 2
+						if ini_sys:section_exist(tostring(t[5])) then
+							local amt = tonumber(t[6])
+							self.recipes[x][2] = {tostring(t[5]), (amt > 4) and (amt - ach) or amt}
+						else
+							printf("! workshop_craft_ui:LoadRecipes() | componenet section [%s] not found for [%s] recipe!", tostring(t[5]), id)
+						end
+					end
+					if t[7] and t[8] then -- support item 3
+						if ini_sys:section_exist(tostring(t[7])) then
+							local amt = tonumber(t[8])
+							self.recipes[x][3] = {tostring(t[7]), (amt > 4) and (amt - ach) or amt}
+						else
+							printf("! workshop_craft_ui:LoadRecipes() | componenet section [%s] not found for [%s] recipe!", tostring(t[7]), id)
+						end
+					end
+					if t[9] and t[10] then -- support item 4
+						if ini_sys:section_exist(tostring(t[9])) then
+							local amt = tonumber(t[10])
+							self.recipes[x][4] = {tostring(t[9]), (amt > 4) and (amt - ach) or amt}
+						else
+							printf("! workshop_craft_ui:LoadRecipes() | componenet section [%s] not found for [%s] recipe!", tostring(t[9]), id)
+						end
+					end
+				end
+			elseif (id ~= "tle") then
+				printf("! workshop_craft_ui:LoadRecipes() | section [%s] not found!",id)
+			end
+		end
+		
+		ind = ind + 1
+	end
+	
+	--alun_utils.print_table(self.recipes)
+end
+
+function recipe_ui:InitRecipes()
+	local xml = self.xml
+	self.scroll:Clear()
+	
+	self.itm = {}
+	local xml_itm_s, xml_itm_tmp, xml_itm_txt, xml_itm_shadow, xml_txt_shadow
+	
+	-- Collect valid items
+	local itm_counter = {}
+	local function search(temp, item)
+		local sec = item:section()
+		local cnt = itms_manager.is_multi_use(item) and item:get_remaining_uses() or 1
+		itm_counter[sec] = (itm_counter[sec] or 0) + cnt
+	end
+	db.actor:iterate_inventory(search,nil)
+		
+	
+	for i=1,#self.recipes do
+		local _st = xml:InitStatic("recipe:form", nil)
+		self.itm[i] = {}
+		
+		xml:InitFrame("recipe:list:frame_1", _st)
+		xml:InitFrame("recipe:list:frame_2", _st)
+		--xml:InitStatic("recipe:list:light", _st)
+		--xml:InitStatic("recipe:list:arrow", _st)
+		local line = xml:InitStatic("recipe:list:pic_line",_st)
+		line:InitTexture("ui_itm_line")
+		
+		local j=1
+		while true do
+			if (j ~= 1) and (not self.recipes[i][j-1]) then
+				break
+			end
+			
+			--xml_itm_shadow = xml:InitStatic("recipe:list:itm_" .. tostring(j) .. "_shadow", _st)
+			--xml_itm_shadow:InitTexture("ui_button_light_h")
+			
+			self.itm[i][j] = xml:InitStatic("recipe:list:itm_" .. tostring(j), _st)
+			xml_itm_s = xml:InitStatic("recipe:list:itm_" .. tostring(j), _st)
+			xml_itm_tmp = xml:InitStatic("recipe:list:itm_" .. tostring(j), _st)
+			xml_txt_shadow = xml:InitTextWnd("recipe:list:cnt_" .. tostring(j), _st)
+			xml_itm_txt = xml:InitTextWnd("recipe:list:cnt_" .. tostring(j), _st)
+			
+			local sec = (j == 1) and self.recipes[i].sec or self.recipes[i][j-1][1]
+			txr_utils.set_up_icon(sec, nil, xml_itm_tmp, self.itm[i][j], xml_itm_s)
+			
+			-- Counter
+			local amount_req = (j == 1) and 1 or self.recipes[i][j-1][2]
+			local multi = 1
+			if itms_manager.is_ammo(nil, sec) then
+				multi = ini_sys:r_float_ex(sec,"box_size")
+			end
+			
+			local pos = xml_itm_txt:GetWndPos()
+			xml_txt_shadow:SetWndPos(vector2():set(pos.x+1,pos.y+1))
+			
+			if (j == 1) then
+				xml_itm_txt:SetText("x" .. (multi * amount_req) )
+				xml_txt_shadow:SetText("x" .. (multi * amount_req) )
+			else
+				xml_itm_txt:SetText( (multi * (itm_counter[sec] or 0)) .. "/" .. (multi * amount_req) )
+				xml_txt_shadow:SetText( (multi * (itm_counter[sec] or 0)) .. "/" .. (multi * amount_req) )
+				if ( (itm_counter[sec] or 0) >= amount_req ) then
+					xml_itm_txt:SetTextColor(GetARGB(255, 50, 255, 50))
+				end
+			end
+			xml_txt_shadow:SetTextColor(GetARGB(255, 20, 20, 20))
+			
+			j = j + 1
+		end
+		
+		self.scroll:AddWindow(_st, true)
+		_st:SetAutoDelete(true)
+	end
+
+	-- Showing toolkit icon
+	if self.toolkit then
+		self.itm_toolkit = xml:InitStatic("recipe:toolkit", self.dialog)
+		xml_itm_tmp = xml:InitStatic("recipe:toolkit", self.dialog)
+		xml_itm_s = xml:InitStatic("recipe:toolkit", self.dialog)
+		
+		txr_utils.set_up_icon(self.toolkit, nil, xml_itm_tmp, self.itm_toolkit, xml_itm_s)
+	end
+end
+
+
+function recipe_ui:SetMsg(text,tmr)
+	if (text == "") then 
+		return 
+	end
+	self.msg_wnd:Show(true)
+	self.msg_wnd_text:SetText(text)
+	self.msg_wnd_text:AdjustHeightToText()
+	self.msg_wnd_text:SetWndSize(vector2():set(820,self.msg_wnd_text:GetHeight()+10))
+	self.msg_wnd_text:SetWndPos(vector2():set(0,20))
+	
+	self.msg_wnd:SetWndSize(vector2():set(820,self.msg_wnd_text:GetHeight()+44))
+	self.msg_wnd:SetWndPos(vector2():set(0,80))
+
+	self.msg_wnd_timer = time_global() + 1000*tmr
+end
+
+function recipe_ui:SetHint(text,pos)
+	if (text == "") then
+		return
+	end
+	self.hint_wnd:Show(true)
+	self.hint_wnd_text:SetText(text)
+	self.hint_wnd_text:AdjustHeightToText()
+	self.hint_wnd:SetWndSize(vector2():set(self.hint_wnd:GetWidth(),self.hint_wnd_text:GetHeight()+44))
+	
+	pos = pos or GetCursorPosition()
+	pos.y = pos.y - self.hint_wnd:GetHeight()
+	pos.x = pos.x - self.hint_wnd:GetWidth()
+	self.hint_wnd:SetWndPos(pos)
+	
+	FitInRect(self.hint_wnd,Frect():set(0,0,1024,768),0,100)
+end
+
+function recipe_ui:Update()
+	CUIScriptWnd.Update(self)
+	
+	-- Warning messages timer 
+	if (self.msg_wnd_timer and time_global() > self.msg_wnd_timer) then 
+		self.msg_wnd_timer = nil
+		self.msg_wnd:Show(false)
+	end
+	
+	if self.itm_toolkit and self.itm_toolkit:IsCursorOverWindow() and self.toolkit then
+		local name = ui_item.get_sec_name(self.toolkit)
+		local desc = ui_item.get_sec_desc(self.toolkit)
+		str = "%c[0,200,200,200]" .. name .. "\\n \\n%c[0,140,140,140]" .. desc
+		self:SetHint(str)
+		return
+		
+	elseif self.itm then
+		for i=1,#self.itm do 
+			for j=1,#self.itm[i] do
+				if (self.itm[i][j] and self.itm[i][j]:IsCursorOverWindow()) then
+					local str = ""
+					local sec = (j == 1) and self.recipes[i].sec or self.recipes[i][j-1][1]
+					if sec then
+						local name = ui_item.get_sec_name(sec)
+						local desc = ui_item.get_sec_desc(sec)
+						str = "%c[0,200,200,200]" .. name .. "\\n \\n%c[0,140,140,140]" .. desc
+					end
+					
+					self:SetHint(str)
+					return
+				end
+			end
+		end
+	end
+	
+	self.hint_wnd:Show(false)
+end
+
+
+function recipe_ui:OnCancel()
+	_G.KEYS_UNLOCK = true -- global keybinds unlock
+	self:HideDialog()
+end
+
+function recipe_ui:OnKeyboard(dik, keyboard_action)
+	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
+	if (res == false) then
+		local bind = dik_to_bind(dik)
+		if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+			--if dik == DIK_keys.DIK_ESCAPE then
+				self:OnCancel()
+			--end
+		end
+	end
+	return res
+end

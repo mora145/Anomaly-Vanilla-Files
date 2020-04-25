@@ -1,0 +1,587 @@
+--[[
+- Created by Tronex
+- Battery system
+- 2018/10/20
+
+- Removed the UPD, all devices will work independently based on their own power 
+- The amount of power left in devices and batteries is represented by condition bar.
+- Drag and drop batteries on a device to put them in
+- You can extract batteries from a device by the new (unpack batteries) option
+- All devices have their own power consumption, set in their configs
+- Better batteries variants have been removed, they no longer have a purpose (along with empty ones)
+--]]
+
+--==========================================< Controls >==========================================--
+local uclamp = utils.clamp
+local temp_con = {}
+
+-- Condition States
+local c_limit
+local c_zero
+local c_full
+local zero_con_devices = {} -- These items will get 0 condition on unpacking their batteries
+
+-- Devices and battery defined
+local itms_device = {}
+local itm_battery, itm_geiger
+local rad_unit = game.translate_string("st_msv")
+
+-- Torch
+local torch_last = ""
+local torch_active = false
+
+-- PDA
+local pda_open = false
+local pda_state = true
+
+-- Night-visions
+local nv_eff = {}
+local nv_state = false
+local nv_force_disable = false
+local nv_chk_time = 0
+local nv_drain -- condition drain on each update for headlamp when NV is active
+local def_lumscale_amb = 1.0 -- default value for r2_sun_lumscale_amb, it changes with NV for improving vision
+local ppe_effects = { -- PPE effects used for each NV. lum and id used for their ppe effects
+	["nightvision_1"] = { id = 3301, lum = 1.2 , ui = "wpn\\hud_nvg_gen1" },
+	["nightvision_2"] = { id = 3302, lum = 1.5 , ui = "wpn\\hud_nvg_gen2" },
+	["nightvision_3"] = { id = 3303, lum = 2.0 , ui = "wpn\\hud_nvg_gen3" },
+	--["nightvision_bluer"] = { id = 3304, lum = 1.0 , ui = "wpn\\hud_nvg_gen1_test" },
+}
+
+
+function init_settings()
+	local ini_device = itms_manager.ini_device
+	itms_device = itms_manager.itms_device
+	itm_battery = itms_manager.itm_battery
+	itm_geiger = itms_manager.itm_geiger
+	
+	c_limit = ini_device:r_float_ex("settings","condition_limit") or 0.09
+	c_zero = ini_device:r_float_ex("settings","condition_zero") or 0.0001
+	c_full = ini_device:r_float_ex("settings","condition_full") or 0.9999
+	nv_drain = ini_device:r_float_ex("settings","nightvision_power_consumption") or 0.000025
+	
+	local n = ini_device:line_count("zero_con_devices")
+	for i=0,n-1 do
+		local result, id, value	= ini_device:r_line_ex("zero_con_devices",i,"","")
+		if id and ini_sys:section_exist(id) then
+			zero_con_devices[id] = true
+		end
+	end
+	
+	get_console():execute("r2_sun_lumscale_amb " .. tostring(def_lumscale_amb)) -- reset
+end
+
+--===========================================< Item Menu >===========================================--
+function menu_battery(obj)
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	local sec = obj:section()
+	local con = obj:condition()
+	
+	if (not itms_manager.is_battery(nil,section)) and itms_manager.is_device(nil,sec) and (con > c_limit) then
+		return game.translate_string("st_item_unpack_battery")
+	end
+end
+
+function use_battery(obj)
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then
+		return
+	end
+	
+	local sec = obj:section()
+	local con = obj:condition()
+	local zro = c_zero
+	if zero_con_devices[sec] then
+		zro = 0.0
+	end
+	
+	if ini_sys:section_exist(itm_battery) then
+		local se_battery = alife():create(itm_battery, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+		txr_condition.add_con_to_process(se_battery.id, con)
+		txr_condition.add_con_to_process(obj:id(), zro)
+		
+		-- Play effect
+		txr_actor_effects.play_item_fx(itm_battery)
+		txr_utils.play_sound("interface\\inv_batt")
+	end
+end
+
+
+--===========================================< Callbacks >===========================================--
+-- add this function to bind_stalker info_callback function
+-- battery.process_pda_infoportion(info_id)
+local function process_pda_infoportion(npc,info_id)
+	local actor = db.actor
+	if actor then
+		if info_id == "ui_pda" then
+			-- PDA opened
+			-- set flag to indicate PDA is open
+			pda_open = true;
+			--news_manager.send_tip(actor, "Opening PDA", nil, nil, 5000)
+			actor:disable_info_portion("ui_pda_hide")
+		elseif info_id == "ui_pda_hide" then
+			-- PDA closed
+			-- remove flag to indicate PDA is closed
+			pda_open = false;
+			--news_manager.send_tip(actor, "Closing PDA", nil, nil, 5000)
+			actor:disable_info_portion("ui_pda")
+		end
+	end
+end
+
+local function on_item_drag_dropped(obj_1, obj_2, slot_from, slot_to)
+	
+	-- Check capability
+	if not (slot_from == EDDListType.iActorBag and slot_to == EDDListType.iActorBag) then
+        return
+    end
+	
+	local sec_1 = obj_1:section() -- battery
+	local sec_2 = obj_2:section() -- device
+	if itm_battery and itms_manager.is_battery(nil,sec_1) and itms_manager.is_device(nil,sec_2) then
+		local con_1 = obj_1:condition()
+		local con_2 = obj_2:condition()
+		
+		if (con_2 > con_1) then
+			SetHudMsg(game.translate_string("ui_st_battery_more_power"))
+			return
+		end
+
+		if (con_2 > c_limit) then
+			local se_3 = alife():create(itm_battery, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID)
+			txr_condition.add_con_to_process(se_3.id, con_2)
+		end
+		
+		txr_utils.release_obj(obj_1)
+		obj_2:set_condition(con_1)
+		
+		txr_actor_effects.play_item_fx(itm_battery)
+		txr_utils.play_sound("interface\\inv_batt")
+	end
+end
+
+local function TrdWndOpened()
+	--printf("-txr_battery | TrdWndOpened")
+	local function search(temp , item)
+		if itms_manager.is_device(item) then
+			temp_con[item:id()] = item:condition()
+			item:set_condition(c_full)
+		end
+	end
+	db.actor:iterate_inventory(search,nil)
+	
+	local pda = db.actor:item_in_slot(8)
+	if pda and (not temp_con[pda:id()]) then
+		temp_con[pda:id()] = pda:condition()
+		pda:set_condition(c_full)
+	end
+	
+	local det = db.actor:item_in_slot(9)
+	if det and (not temp_con[det:id()]) then
+		temp_con[det:id()] = det:condition()
+		det:set_condition(c_full)
+	end
+	
+	local torch = db.actor:item_in_slot(10)
+	if torch and (not temp_con[torch:id()]) then
+		temp_con[torch:id()] = torch:condition()
+		torch:set_condition(c_full)
+	end
+end
+
+local function TrdWndClosed()
+	--printf("-txr_battery | TrdWndClosed")
+	for k,v in pairs(temp_con) do
+		local obj = level.object_by_id(k)
+		if obj then
+			local p = obj:parent()
+			if (p and p:id() == AC_ID) then
+				txr_condition.add_con_to_process(k,v)
+			end
+		end
+	end
+	temp_con = empty_table(temp_con)
+end
+
+local function actor_on_update()
+	local actor  = db.actor
+	local torch  = actor:item_in_slot(10)
+	local det    = actor:active_detector()
+	local pda    = actor:item_in_slot(8)
+
+	Update_Light	(torch, det)
+	Drain_Torch		(torch)
+	Drain_PDA		(pda)
+	Drain_Detector	(det)
+	Drain_NV		(torch)
+end
+
+local rad_zones = {
+	["zone_field_radioactive"] = true,
+	["zone_field_radioactive_weak"] = true,
+	["zone_field_radioactive_average"] = true,
+	["zone_field_radioactive_strong"] = true,
+	["zone_radioactive"] = true,
+	["zone_radioactive_weak"] = true,
+	["zone_radioactive_average"] = true,
+	["zone_radioactive_strong"] = true,
+}
+local function anomaly_zone_on_feel_touch(obj, flags)
+	if obj then
+		
+		-- Don't play gieger sound if player don't have a geiger counter
+		if rad_zones[obj:section()] then
+			if difficulty_manager.get_game_factor("notify_geiger") then
+				local obj_geiger = itm_geiger and db.actor:object(itm_geiger)
+				if not (obj_geiger and obj_geiger:condition() > c_limit) then
+					flags.ret_value = false
+					return
+				end
+			end
+			
+		-- Anomaly detector
+		elseif (not difficulty_manager.get_game_factor("notify_anomaly")) then
+			flags.ret_value = false
+			return
+		end
+	end
+	
+	flags.ret_value = true
+end
+
+local function on_key_release(key)
+	local bind = dik_to_bind(key)
+	
+	-- Night-Vision
+	if (bind == key_bindings.kNIGHT_VISION) then
+		local torch = db.actor:item_in_slot(10)
+		set_nightvision(torch and torch:section(), not nv_state)
+		
+	-- Dosimeter keybind
+	elseif (bind == key_bindings.kCUSTOM14) then
+		local hud = actor_menu.get_last_mode()
+		if (hud ~= 0) or txr_battery.is_pda_opened() then
+			return
+		end
+		
+		local obj = db.actor:object(itm_geiger)
+		if obj and (obj:condition() > 0.09) then
+			local actor_rad = math.floor(db.actor.radiation*10000*0.387)
+			show_message(tostring(actor_rad) .. " " .. rad_unit, 45)
+			drain(obj, obj:condition(), 0.005)
+			txr_utils.play_sound("detectors\\geiger_1")
+		end
+	end
+end
+
+function on_game_start()
+	init_settings()
+	
+	RegisterScriptCallback("actor_on_info_callback",process_pda_infoportion)
+	RegisterScriptCallback("CUIActorMenu_OnItemDropped",on_item_drag_dropped)
+	RegisterScriptCallback("TrdWndOpened",TrdWndOpened)
+	RegisterScriptCallback("TrdWndClosed",TrdWndClosed)
+	RegisterScriptCallback("actor_on_update",actor_on_update)
+	RegisterScriptCallback("anomaly_zone_on_feel_touch",anomaly_zone_on_feel_touch)
+	RegisterScriptCallback("on_key_release",on_key_release)
+end
+
+
+--===========================================< Logic >===========================================--
+local torch_flicker_state = false
+local fl_flicker_state = false
+function Update_Light(torch, det)
+	local torch_con = torch and torch:condition()
+	local fl_con = det and (det:section() == "device_flashlight") and det:condition()
+	
+	--// flag to determine if torch or flashlight is available with enough power
+	local flag_to = (torch_con and (torch_con > c_limit))
+	local flag_fl = (fl_con and (fl_con > c_limit))
+
+	--// if headlamp is equipped, charged and activated -> start torch
+	if flag_to and torch_active then
+		if (torch and (not torch:torch_enabled())) then
+			torch:enable_torch(true)
+		end
+	else
+		if (torch and torch:torch_enabled()) then 
+			torch:enable_torch(false)
+		end
+		torch_active = false
+	end
+	
+	--// Enable torch flicker if it's needed
+	if torch and torch:torch_enabled() then
+		local flicker = txr_environment.get_light_flicker()
+		if (torch_flicker_state ~= flicker) then
+			if flicker then
+				local ca = "light_flicker"
+				local on_off_chance = math.random(25,50)
+				local on_off_time 	= math.random(0.3,0.9)
+				local fps = math.random(20,30)
+				torch:set_color_animator(ca,true,on_off_chance,on_off_time,fps)
+				--printf("~ Torch set anim")
+			else
+				--printf("~ Torch reset anim")
+				torch:reset_color_animator() 
+			end
+		end
+		torch_flicker_state = flicker
+	end
+	
+	--// Enable flashlight flicker if it's needed
+	if flag_fl then
+		local flicker = txr_environment.get_light_flicker()
+		if (fl_flicker_state ~= flicker) then
+			if flicker then
+				local ca = "light_flicker"
+				local on_off_chance = math.random(25,50)
+				local on_off_time 	= math.random(0.3,0.9)
+				local fps = math.random(20,30)
+				det:set_color_animator(ca,true,on_off_chance,on_off_time,fps)
+				--printf("~ Flashlight set anim")
+			else
+				--printf("~ Flashlight reset anim")
+				det:reset_color_animator() 
+			end
+		end
+		fl_flicker_state = flicker
+	end
+	--
+	
+	--// if equipped headlamp is changed -> disable torch and NV
+	local torch_sec =  torch and torch:section() or ""
+	if (torch_sec ~= torch_last) then
+		torch_last = torch_sec or "" -- save last used headlamp
+		torch_active = false
+		nv_force_disable = true
+	end
+end
+
+function Drain_Torch(torch)
+	if torch then
+		local con = torch:condition()
+		if (con > c_limit) then
+			if (torch:torch_enabled()) then 
+				drain(torch, con, itms_device[torch:section()])
+			end
+		else
+			torch:set_condition(c_zero)
+		end
+	end
+end
+
+function Drain_NV(torch)
+	set_nightvision_HUD(nv_state)
+	local con = torch and torch:condition()
+	local sec = torch and torch:section()
+	if (not con) or (nv_force_disable) then -- turn off NV on unequipping/changing torch
+
+		if nv_state then
+			for k,v in pairs(ppe_effects) do
+				level.remove_pp_effector(v.id)
+				nv_state = false
+				txr_utils.play_sound("interface\\inv_nv_off")
+			end
+			get_console():execute("r2_sun_lumscale_amb " .. tostring(def_lumscale_amb))
+		end
+		
+		nv_force_disable = false
+		return
+	end
+	
+	if nv_state then
+		if (con > c_limit) then
+			drain(torch, con, nv_drain)
+		else
+			set_nightvision(sec,false)
+		end
+	end
+end
+
+function Drain_PDA(pda)
+	local hud = get_hud()
+	if pda then -- pda is equipped
+		local con = pda:condition()
+		if (con > c_limit) then -- enough power
+			pda_state = true
+			if pda_open then
+				drain(pda, con, itms_device[pda:section()])
+			end
+		else -- low power
+			pda_state = false
+			if pda_open then
+				show_message(game.translate_string("st_pda_no_power"),35)
+				hud:HidePdaMenu()
+			end
+		end
+	else -- pda not equipped
+		pda_state = false
+		if pda_open then
+			show_message(game.translate_string("st_pda_no_active"),35)
+			hud:HidePdaMenu()
+		end
+	end
+end
+
+function Drain_Detector(det)
+	if det then
+		local con = det:condition()
+		if (con > c_limit) then
+			drain(det, con, itms_device[det:section()])
+			
+			
+		else
+			det:set_condition(0.0)
+		end
+	end
+end
+
+function Drain_Geiger(sec) -- called from txr_geiger (not anymore)
+	local det = db.actor:object(sec)
+	if det then
+		local con = det:condition()
+		if (con > c_limit) then
+			drain(det, con, itms_device[det:section()])
+			return false
+		else
+			det:set_condition(c_zero)
+		end
+	end
+	return true
+end
+
+
+function drain(obj, con, val)
+	if (not val) then return end
+	local factor = difficulty_manager.get_eco_factor("battery_consumption")
+	val = val * factor
+	local new_con = con - val
+	new_con = uclamp(new_con,c_zero,c_full)
+	obj:set_condition(new_con)
+	--printf("/ Draining device power: %s", obj:section())
+end
+
+function set_nightvision(section,state)
+	if (not section) then
+		return
+	end
+	
+	nv_eff[section] = nv_eff[section] or ini_sys:r_string_ex(section,"nv_effect")
+	
+	if ppe_effects[nv_eff[section]] then
+		
+		if state and (not nv_state) then
+			local ppe = ppe_effects[nv_eff[section]]
+			level.add_pp_effector(nv_eff[section] .. ".ppe", ppe.id, true)
+			txr_utils.play_sound("interface\\inv_nv_start")
+			nv_state = true
+			get_console():execute("r2_sun_lumscale_amb " .. tostring(ppe.lum))
+		elseif (not state) and nv_state then
+			local ppe = ppe_effects[nv_eff[section]]
+			level.remove_pp_effector(ppe.id)
+			txr_utils.play_sound("interface\\inv_nv_off")
+			nv_state = false
+			get_console():execute("r2_sun_lumscale_amb " .. tostring(def_lumscale_amb))
+		end
+		
+		set_nightvision_HUD(nv_state)
+	end
+end
+
+function can_toggle_torch()
+	local torch = db.actor:item_in_slot(10)
+	if torch then
+		return true
+	end
+	return false
+end
+
+function toggle_torch()
+	torch_active = not torch_active
+	return torch_active
+end
+
+local w_multi = 1024/(device().width)
+local h_multi = 768/(device().height)
+local nv_hud = { x = 0, y = 0, height = (device().height * h_multi), weight = (device().width * w_multi) }	-- HUD dimensions/position
+function set_nightvision_HUD(bShow)
+	local hud = get_hud()
+	local drk = hud:GetCustomStatic("nv_tunnel")
+	local wnd
+	
+	if (bShow == false) or (db.actor:is_talking()) then
+		if (drk ~= nil) then
+			hud:RemoveCustomStatic("nv_tunnel")
+			drk = nil
+		end
+		return
+	end
+	
+	if (drk == nil) then
+		hud:AddCustomStatic("nv_tunnel",true)
+		drk = hud:GetCustomStatic("nv_tunnel")
+		wnd = drk:wnd()
+		if (wnd ~= nil) then
+			wnd:SetWndPos(vector2():set(nv_hud.x , nv_hud.y))
+			wnd:SetWndSize(vector2():set(nv_hud.weight , nv_hud.height))
+			wnd:SetAutoDelete(true)
+		end
+	end
+	
+	if (drk ~= nil) then
+		wnd = drk:wnd()
+		local torch = db.actor:item_in_slot(10)
+		local torch_sec = torch and torch:section()
+		if torch_sec then
+			nv_eff[torch_sec] = nv_eff[torch_sec] or ini_sys:r_string_ex(torch_sec,"nv_effect")
+			local ppe = ppe_effects[nv_eff[torch_sec]]
+			if ppe then
+				wnd:InitTexture(ppe.ui)
+			end
+		end
+	end
+end
+
+function is_pda_on()
+	return pda_state
+end
+function is_pda_opened()
+	return pda_open
+end
+
+function get_c_limit()
+	return c_limit
+end
+function get_c_zero()
+	return c_zero
+end
+function get_c_full()
+	return c_full
+end
+
+function allow_pda_key()
+	--Return true if PDA is equipped and works
+	if (is_pda_opened() or is_pda_on()) then return true end
+	
+	--Show not equipped or battery empty message
+	local pda = db.actor:item_in_slot(8)
+	if (pda) then
+		show_message(game.translate_string("st_pda_no_power"),35)
+	else
+		show_message(game.translate_string("st_pda_no_active"),35)
+	end
+	
+	return false
+end
+
+function show_message(msg,time)
+	local hud = get_hud()
+	hud:AddCustomStatic("can_use_weapon_now", true)
+	hud:GetCustomStatic("can_use_weapon_now"):wnd():TextControl():SetTextST(msg)
+	ShowMessage = true
+	ShowMessageInit = game.get_game_time()
+	ShowMessageTime = time
+end

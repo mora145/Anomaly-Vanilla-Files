@@ -1,0 +1,517 @@
+--[[
+
+- Created by Tronex
+- Open looted PDAs and view the messages
+- 2018/10/27
+
+--]]
+
+local ui
+local uc = utils.clamp
+local map_tbl = {
+	"agr",
+	"bar",
+	"cit",
+	"dsc",
+	"esc",
+	"gar",
+	"gen",
+	"jup",
+	"kat",
+	"lim",
+	"mar",
+	"mil",
+	"out",
+	"pol",
+	"pri",
+	"rad",
+	"red",
+	"ros",
+	"trc",
+	"val",
+	"yan",
+	"zat",
+}
+
+local faction_encyption = {
+	["army"] = 30,
+	["bandit"] = 0,
+	["csky"] = 20,
+	["dolg"] = 40,
+	["ecolog"] = 30,
+	["freedom"] = 20,
+	["killer"] = 40,
+	["stalker"] = 10,
+	["monolith"] = 50,
+	--["renegade"] = 10,
+	--["greh"] = 30,
+	--["isg"] = 50,
+}
+
+local faction_lookup = { -- List of factions used in PDA messages
+	"stalker",
+	"dolg",
+	"freedom",
+	"csky",
+	"ecolog",
+	"killer",
+	"army",
+	"bandit",
+	"monolith",
+	--"renegade",
+	--"greh",
+	--"isg",
+}
+
+local stash_factor_per_pda = {
+	["itm_pda_common"] = 1,
+	["itm_pda_uncommon"] = 2,
+	["itm_pda_rare"] = 3,
+}
+local route_factor_per_pda = {
+	["itm_pda_common"] = 10,
+	["itm_pda_uncommon"] = 15,
+	["itm_pda_rare"] = 20,
+}
+local rf_factor_per_pda = {
+	["itm_pda_common"] = 15,
+	["itm_pda_uncommon"] = 20,
+	["itm_pda_rare"] = 30,
+}
+
+local faction_no_rf = {
+	["monolith"] = true,
+	["greh"] = true,
+}
+
+npc_pda = {}
+
+--===========================================< Item Menu >===========================================--
+function menu_pda(obj)
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	return game.translate_string("st_ui_inventory_view")
+end
+
+function use_pda(obj)
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then
+		return
+	end
+	
+	local id = obj:id()
+	local con = obj:condition()
+
+	local hud = get_hud()
+	if (hud) then
+		hud:HideActorMenu()
+	end
+	
+	if (not npc_pda[id]) then
+		SetHudMsg(game.translate_string("ui_st_npc_pda_unkown"),3)
+		return
+	end
+	
+	ui = ui_itm_pda and ui_itm_pda.pda_ui(hud, obj, npc_pda[id], (con > 0.1))
+	if (ui) then
+		ui:ShowDialog(true)
+	end	
+end
+
+
+--===========================================< Callbacks >===========================================--
+local function save_state(m_data)
+	m_data.npc_pda = npc_pda
+end
+
+local function load_state(m_data)
+	npc_pda = m_data.npc_pda or {}
+end
+
+local function on_before_level_changing()
+	validate_pda()
+	printdbg("~ txr_pda | cleaned data of non-existing PDAs")
+end
+
+function on_game_start()
+	RegisterScriptCallback("save_state",save_state)
+	RegisterScriptCallback("load_state",load_state)
+	RegisterScriptCallback("on_before_level_changing",on_before_level_changing)
+end
+
+
+--===========================================< Logic >===========================================--
+function register_pda(npc, pda_sec, pda_id) -- called from death_manager
+	-- Contact info
+	local contact = {
+		name = npc:character_name(),
+		comm = npc:character_community(),
+		icon = npc:character_icon(),
+		rank = ranks.get_obj_rank_name(npc),
+		repu = npc:character_reputation(),
+	}
+	
+	-- PDA state
+	local state = "default"
+	if (math.random(1,100) <= 1) and (not has_alife_info("kill_the_strelok_pda_found")) then
+		state = "kill_the_strelok"
+	elseif (pda_sec == "itm_pda_rare") or (math.random(1,100) < faction_encyption[contact.comm]) then 
+		state = "encrypted"
+	end
+	
+	
+	-- Stash message possibility
+	local stash = false
+	local stash_chance = difficulty_manager.get_eco_factor("stash_chance") or 0.4
+	local stash_factor = stash_factor_per_pda[pda_sec] or 1
+	if ( math.random(1,100) < ((stash_chance * 100) * stash_factor) ) then
+		stash = true
+	end
+	
+	-- Map message possibility
+	local map_route = false
+	if (math.random(1,100) < (route_factor_per_pda[pda_sec] or 10))
+	and (not alife_storage_manager.get_state().opened_routes)
+	and txr_routes.is_route_left()
+	then
+		local locked_routes = {}
+		for i=1,#map_tbl do
+			for j=1,#map_tbl do
+				if (map_tbl[i] ~= map_tbl[j]) and txr_routes.is_map_connected(map_tbl[i],map_tbl[j]) and (not txr_routes.is_route_discovered (map_tbl[i],map_tbl[j])) then
+					locked_routes[#locked_routes + 1] = {map_tbl[i],map_tbl[j]}
+				end
+			end
+		end
+		if (#locked_routes > 0) then
+			map_route = locked_routes[math.random(#locked_routes)]
+		end
+	end
+	
+	-- RF source message possibility
+	local rf_source = false
+	local rf_sources = txr_radio_wave.RF_stashes
+	if (math.random(1,100) < (rf_factor_per_pda[pda_sec] or 15))
+	and (not faction_no_rf[contact.comm])
+	and (size_table(rf_sources) > 0)
+	then
+		local key_map = random_key_table(rf_sources)
+		if (size_table(rf_sources[key_map]) > 0) then
+			local key_id = random_key_table(rf_sources[key_map])
+			rf_source = { key_id , rf_sources[key_map][key_id] }
+		end
+	end
+	
+	-- Generate messages
+	local msg = {}
+	if (state ~= "kill_the_strelok") then
+		local msg_count = math.random(1,3)
+		for i=1,msg_count do
+			local older_date = (#msg > 0) and msg[#msg].msg_date or false
+			local special = (stash and "stash") or (map_route and "route") or (rf_source and "rf_source") or false
+			local special_functor = ((special == "route") and map_route) or ((special == "rf_source") and rf_source)
+			local curr_msg = generate_msg(contact, older_date, special, special_functor)
+			if curr_msg and curr_msg.topic and curr_msg.topic_title then
+				msg[#msg + 1] = curr_msg
+			end
+			if stash and curr_msg.stash then stash = false end -- 1 stash message only
+			if map_route and curr_msg.route then map_route = false end -- 1 map route message only
+			if rf_source and curr_msg.rf_freq then rf_source = false end -- 1 rf source message only
+		end
+	end
+	
+	npc_pda[pda_id] = {}
+	npc_pda[pda_id].state = state
+	npc_pda[pda_id].contact = contact
+	npc_pda[pda_id].msg = msg
+end
+
+function generate_msg(contact, older_date, special, special_functor)
+
+	if (not faction_encyption[contact.comm]) then
+		return
+	end
+	
+	local info = {}
+	local name = {}
+	for word in string.gmatch(contact.name, "%a+") do 
+		name[#name + 1] = word
+	end
+	
+	-- Gather NPC info
+	local f = faction_expansions.faction[contact.comm]
+	info.msg_date = generate_date(older_date)
+	info.fname = name[1]
+	info.lname = name[2]
+	info.c1_fname = generate_fname(contact.comm, "name")
+	info.c1_lname = generate_fname(contact.comm, "lname")
+	info.c2_fname = generate_fname(contact.comm, "name")
+	info.c2_lname = generate_fname(contact.comm, "lname")
+	info.base = f["territory"]
+	info.leader = f["leader_name"]
+	info.trader = f["trader_name"]
+	info.mechanic = f["mechanic_name"]
+	local level_presence = f["level_presence"]
+	info.map = random_key_table(level_presence)
+	info.pointer = get_pointer(info.map)
+	info.directional = get_directional()
+	info.enemy = get_enemy(contact.comm, info.map)
+	
+	info.pic = "encyclopedia_pda_general_image"
+	
+	-- Stash
+	if (special == "stash") then
+		local pick = tostring(1)
+		local stash_id, stash_name, stash_desc, stash_hint = treasure_manager.get_random_stash(nil , game.translate_string("st_stash_of") .. " " .. contact.name , true)
+		local topic_title =  txr_utils.collect_translations("st_msg_stash_title_" .. pick .. "_")
+		local topic =  gather_parts("st_msg_stash_" .. pick .. "_")
+		
+		if stash_id then
+			info.stash = stash_id
+			info.stash_read = false
+			info.topic_title = stash_name or topic_title[math.random(#topic_title)]
+			info.topic = stash_desc and { stash_desc } or topic
+			info.pic = "encyclopedia_pda_stash_" .. tostring(math.random(1,7)) .. "_image"
+			
+			return info
+		end
+	end
+	
+	-- Map route
+	if (special == "route") then
+		local pick = tostring(1)
+		local topic_title =  txr_utils.collect_translations("st_msg_map_title_" .. pick .. "_")
+		local topic =  gather_parts("st_msg_map_" .. pick .. "_")
+		
+		if special_functor then
+			info.route = special_functor
+			info.topic_title = topic_title[math.random(#topic_title)]
+			info.topic = topic
+			info.pic = "encyclopedia_pda_route_image"
+			
+			return info
+		end
+	end
+	
+	-- RF source
+	if (special == "rf_source") then
+		local pick = tostring(1)
+		local topic_title =  txr_utils.collect_translations("st_msg_rf_title_" .. pick .. "_")
+		local topic =  gather_parts("st_msg_rf_" .. pick .. "_")
+		local sim = alife()
+		local se_obj = special_functor and special_functor[1] and alife_object(special_functor[1])
+		if se_obj then
+			info.rf_map = alife():level_name(game_graph():vertex(se_obj.m_game_vertex_id):level_id())
+			info.rf_freq = special_functor[2]
+			info.topic_title = topic_title[math.random(#topic_title)]
+			info.topic = topic
+			info.pic = "encyclopedia_pda_rf_image"
+	
+			return info
+		end
+	end
+	
+	-- Pick topic
+	local topic_tbl = f["pda_topic"]
+	local mission_tbl = f["pda_topic_mission"]
+	local n = 0
+	n = n + topic_tbl.mission
+	n = n + topic_tbl.chitchat
+	n = n + topic_tbl.joke
+	local mission_chance  = math.ceil(100 * (topic_tbl.mission / n))
+	local chitchat_chance = math.ceil(100 * (topic_tbl.chitchat / n))
+	local joke_chance     = math.ceil(100 * (topic_tbl.joke / n))
+	local mission_bar  = { 1 , (mission_chance + 1) }
+	local chitchat_bar = { (mission_chance + 1) , (mission_chance + chitchat_chance + 2) }
+	local joke_bar     = { (mission_chance + chitchat_chance + 3) , (mission_chance + chitchat_chance + joke_chance + 4) }
+	--printf("-mission_bar(%s,%s) - chitchat_bar(%s,%s) - joke_bar(%s,%s)",mission_bar[1],mission_bar[2],chitchat_bar[1],chitchat_bar[2],joke_bar[1],joke_bar[2])
+	local topic_rnd = math.random(1,100)
+	local topic_type = (topic_rnd > mission_bar[1] and topic_rnd < mission_bar[2] and "mission") or (topic_rnd > chitchat_bar[1] and topic_rnd < chitchat_bar[2] and "chitchat") or (topic_rnd > joke_bar[1] and topic_rnd < joke_bar[2] and "joke") or "mission"
+	local topic
+	if (topic_type == "mission") then
+		topic = topic_type .. "_" .. mission_tbl[math.random(#mission_tbl)]
+	else
+		topic = topic_type
+	end
+	
+	-- Read available message parts
+	local pick = tostring(1)
+	local topic_title = txr_utils.collect_translations("st_msg_" .. topic .. "_title_" .. pick .. "_")
+	local topic_str = gather_parts("st_msg_" .. topic .. "_" .. pick .. "_")
+
+	info.topic_title = topic_title[math.random(#topic_title)]
+	info.topic = topic_str
+	
+	return info
+end
+
+function get_pointer(map)
+	local pointers = txr_utils.collect_translations("st_dyn_" .. map .. "_daleko_")
+	if pointers then
+		return pointers[math.random(#pointers)]
+	end
+	return ""
+end
+
+function get_directional()
+	local direction = {
+		"st_dyn_news_near",
+		"st_dyn_news_close",
+		"st_dyn_news_east",
+		"st_dyn_news_north_east",
+		"st_dyn_news_north",
+		"st_dyn_news_north_west",
+		"st_dyn_news_west",
+		"st_dyn_news_south_west",
+		"st_dyn_news_south",
+		"st_dyn_news_south_east",
+	}
+	
+	return direction[math.random(#direction)]
+end
+
+function get_enemy(faction, map)
+
+	-- Collect enemy factions
+	local enemy = {}
+	for i=1,#faction_lookup do
+		if game_relations.is_factions_enemies(faction, faction_lookup[i]) then
+			enemy[#enemy + 1] = faction_lookup[i]
+		end
+	end
+	
+	-- See map presense with topic's faction
+	local lvl_enemy = {}
+	local lvl_p = dynamic_news_helper.GetFaction(faction,"level_presence")
+	for i=1,#enemy do
+		local lvl_pi = dynamic_news_helper.GetFaction(enemy[i],"level_presence")
+		for k,_ in pairs(lvl_pi) do
+			if lvl_p[k] and (k == map) then
+				lvl_enemy[#lvl_enemy + 1] = enemy[i]
+				break
+			end
+		end
+	end
+
+	local pick
+	if (#lvl_enemy > 0) then
+		pick = lvl_enemy[math.random(#lvl_enemy)]
+	else
+		pick = enemy[math.random(#enemy)]
+	end
+	
+	
+	if pick then
+		return "st_dyn_news_comm_" .. pick .. "_8"
+	end
+	return "st_dyn_news_enemy_foces"
+end
+
+function gather_parts(str) -- str(m_n)
+	local part = {}
+	local m = 0
+	while true do
+		m = m + 1
+		local temp = txr_utils.collect_translations(str .. tostring(m) .. "_")
+		if (not temp) then 
+			break
+		else
+			part[m] = temp
+		end
+	end
+	
+	-- Gather message parts
+	local str_parts = {}
+	if (#part > 0) then
+		for i=1,#part do
+			str_parts[#str_parts + 1] = part[i][math.random(#part[i])]
+		end
+	end
+	
+	return str_parts
+end
+
+function generate_fname(comm,key)
+	local key2 = "stalker"
+	if comm == "bandit" then key2 = "bandit"
+	elseif comm == "ecolog" then key2 = "science"
+	end --elseif comm == "dolg" or "army" then key2 = "private" or "sergeant" or "lieutenant" end
+
+	local name_list = txr_utils.collect_translations(key .. "_" .. key2 .. "_" , true)
+	return name_list[math.random(#name_list)]
+end
+
+function generate_date(last_msg_date)
+	local Y1, M1, D1 = 0, 0, 0
+	
+	local Y, M, D, h, m, s, ms = 0, 0, 0, 0, 0, 0, 0
+	if last_msg_date then
+		Y, M, D = string.match(last_msg_date, "(%d+)/(%d+)/(%d+)")
+		Y = tonumber(Y)
+		M = tonumber(M)
+		D = tonumber(D)
+	else
+		Y, M, D, h, m, s, ms = game.get_game_time():get(Y, M, D, h, m, s, ms)
+	end
+	local diff = D - math.random(1,30)
+	D1 = (diff >= 1) and diff or (diff + 29)
+	M1 = (D1 > D) and M - 1 or M
+	Y1 = (M1 > M) and Y - 1 or Y
+	
+	local str = strformat( "%s/%s/%s" , tostring(Y1) , tostring(M1) , tostring(D1) )
+	return str
+end
+
+function get_encrypted_pdas()
+	local encrypted_pdas = {}
+	for k,v in pairs(npc_pda) do
+		local obj = level.object_by_id(k)
+		if obj then
+			local p = obj:parent()
+			if (p and p:id() == AC_ID) and (npc_pda[k].state == "encrypted") then
+				encrypted_pdas[#encrypted_pdas + 1] = k
+			end
+		end
+	end
+	return encrypted_pdas
+end
+
+function validate_pda() -- delete non-existing PDA storage
+	for k,v in pairs(npc_pda) do
+		local se_pda = alife_object(k)
+		if (not se_pda) then
+			npc_pda[k] = nil
+		elseif se_pda and (not string.find(se_pda:section_name(),"itm_pda")) then
+			npc_pda[k] = nil
+		end
+	end
+end
+
+
+--===========================================< Dialog >===========================================--
+function have_encrypted_pda(first_speaker, second_speaker)
+	local encrypted_pdas = get_encrypted_pdas()
+	if (#encrypted_pdas > 0) then
+		return true
+	end
+	return false
+end
+
+function have_encrypted_pda_money(first_speaker, second_speaker)
+	local encrypted_pdas = get_encrypted_pdas()
+	local num = #encrypted_pdas
+	return mlr_utils.have_money(500 * num)
+end
+
+function take_encrypted_pda_money(first_speaker, second_speaker)
+	local encrypted_pdas = get_encrypted_pdas()
+	local num = #encrypted_pdas
+	dialogs.relocate_money_from_actor(first_speaker, second_speaker, 500 * num) 
+end
+
+function unlock_encrypted_pda(first_speaker, second_speaker)
+	local encrypted_pdas = get_encrypted_pdas()
+	for i=1,#encrypted_pdas do
+		npc_pda[encrypted_pdas[i]].state = "default"
+	end
+end

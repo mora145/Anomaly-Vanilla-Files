@@ -1,0 +1,407 @@
+--[[
+
+- Created by tdef
+- Swap items with companions
+- 2018/12/16
+
+--]]
+
+function on_game_start()
+	RegisterScriptCallback("save_state",save_state)
+	RegisterScriptCallback("load_state",load_state)
+end
+
+local MDATA = { assigned_items = {} }
+function save_state(mdata)
+	mdata.comp_mule = MDATA
+end
+
+function load_state(mdata)
+	if mdata.comp_mule then
+		--printf('loading mdata')
+		MDATA = mdata.comp_mule
+		-- alun_utils.print_table(MDATA)
+	else
+		--printf('new mdata')
+		MDATA = {}
+		MDATA.assigned_items = {}
+	end
+end
+
+function game_obj(id)
+	local nid = tonumber(id)
+	if not nid then 
+		callstack()
+		printf('! game_obj: %s not a number', id)
+		return nil
+	end
+	local go = level.object_by_id(nid)
+	return go
+end
+
+local t_1 = {}
+function get_inventory_table_by_id(id)
+	-- local npc = (id == AC_ID) and db.actor or game_obj(id)
+	local npc = game_obj(id)
+	if not npc then
+		callstack()
+		printf('! get_inventory_table_by_id: no npc by id %s', id)
+		return nil
+	end
+	empty_table(t_1)
+	local function iterate(go_owner, go_obj)
+		t_1[#t_1 + 1] = go_obj:id()
+	end
+	npc:iterate_inventory(iterate,npc)
+	
+	return t_1
+end
+
+local t_2 = {}
+function get_inventory_table_actor_ordered()
+	empty_table(t_2)
+	local function iterate(_, obj)
+		local id = obj:id()
+		local sec = obj:section()
+		if not (string.find(sec,'bolt') or string.find(sec,'pda') or string.find(sec,'cash') or string.find(sec,'torch')) then
+			-- printf('%s',sec)
+			t_2[#t_2 + 1] = {id, sec}
+		end
+	end
+	db.actor:iterate_inventory(iterate,db.actor)
+	
+	function compare(a,b)
+		return a[2] < b[2]
+	end
+
+	table.sort(t_2, compare)
+	
+	return t_2
+end
+
+local t_3 = {}
+function get_inventory_table_npc_ordered(id)
+	empty_table(t_3)
+	local npc = game_obj(id)
+	if not npc then
+		callstack()
+		printf('! get_inventory_table_npc_ordered: no npc by id %s', id)
+		return nil
+	end
+	
+	local function iterate(owner, obj)
+		local id = obj:id()
+		local sec = obj:section()
+		if is_assigned_item(owner:id(),obj:id()) then
+			t_3[#t_3 + 1] = {id, sec}
+		end
+	end
+	npc:iterate_inventory(iterate,npc)
+	
+	function compare(a,b)
+		return a[2] < b[2]
+	end
+
+	table.sort(t_3, compare)
+	
+	return t_3
+end
+
+local t_4 = {}
+function get_inventory_table_npc(id)
+	-- local npc = (id == AC_ID) and db.actor or game_obj(id)
+	local npc = game_obj(id)
+	if not npc then
+		callstack()
+		printf('! get_inventory_table_by_id: no npc by id %s', id)
+		return nil
+	end
+	empty_table(t_4)
+	local function iterate(go_owner, go_obj)
+		-- printf('check item %s',go_obj:id())
+		if is_assigned_item(go_owner:id(),go_obj:id()) then
+			t_4[#t_4 + 1] = go_obj:id()
+		end
+	end
+	npc:iterate_inventory(iterate,npc)
+	
+	return t_4
+end
+
+function pt(t,h)
+	printf('PRINT TABLE')
+	printf('--------------------------------------')
+	printf('%s', alun_utils.print_table(t,h,true))
+	printf('--------------------------------------')
+end
+
+local ui
+function show_mule_gui(a,b)
+	local com = a:id() > 0 and a or b
+	if a and b then
+		a:stop_talk()
+		b:stop_talk()
+	end
+	
+	local hud = get_hud()
+	if (hud) then
+		hud:HideActorMenu()
+	end
+	
+	--printf("-call ui")
+	ui = ui_companion_inv.comp_inv_ui(com:id(),com:character_icon())
+	if (ui) then
+		--printf("-show ui")
+		ui:ShowDialog(true)
+	end
+	
+	return true
+end
+
+function give_all_to_companion(a,b)
+	local com = a:id() > 0 and a or b
+	local act_inv = get_inventory_table_by_id(0)
+	if not act_inv then
+		printf('/ act_inv nil')
+		return
+	end
+	
+	local snd
+	for i,v in ipairs(get_free_items()) do
+		snd = true
+		give_item(v, com:id())
+	end
+	
+	if snd then
+		txr_utils.play_sound("interface\\items\\inv_items_take_all")
+	end
+end
+
+function take_all_from_companion(a,b)
+	local com = a:id() > 0 and a or b
+	local com_id = com:id()
+	local com_inv = get_inventory_table_by_id(com_id)
+	if not com_inv then
+		printf('/ com_inv nil')
+		return
+	end
+	
+	local snd
+	for k,v in pairs(com_inv) do
+		snd = true
+		take_item(v, com:id())
+	end
+	-- pt(MDATA,'after take_all')
+	
+	if MDATA.assigned_items[com_id] then
+		empty_table(MDATA.assigned_items[com_id])
+		MDATA.assigned_items[com_id] = nil
+	end
+	
+	if snd then
+		txr_utils.play_sound("interface\\items\\inv_items_take_all")
+	end
+end
+
+function give_item(item_id, com_id)
+	-- printf('give_item(%s,%s)',item_id, com_id)
+	local item = game_obj(item_id)
+	local com = game_obj(com_id)
+	
+	if not com then
+		printf('! take_item: companion %s doesnt exist or offline', com_id)
+		return
+	end
+	
+	if not item then
+		printf('! take_item: item %s doesnt exist or offline', item_id)
+		return
+	end
+	
+	txr_sounds.actor_on_item_take(item) -- sound
+	
+	if not MDATA.assigned_items[com_id] then 
+		MDATA.assigned_items[com_id] = {}
+	end
+	
+	MDATA.assigned_items[com_id][item_id] = true
+	db.actor:transfer_item(item,com)
+	-- printf('item %s given', item_id)
+end
+
+function take_item(item_id, com_id)
+	-- printf('take_item(%s,%s)',item_id, com_id)
+	local item = game_obj(item_id)
+	local com = game_obj(com_id)
+	
+	if not com then
+		printf('! take_item: companion %s doesnt exist or offline', com_id)
+		return
+	end
+	
+	if not item then
+		printf('! take_item: item %s doesnt exist or offline', item_id)
+		return
+	end
+	
+	txr_sounds.actor_on_item_take(item) -- sound
+	
+	if not MDATA.assigned_items[com_id] then
+		printf('! take_item: companion doesnt have any assigned item')
+		return
+	end
+	
+	if not MDATA.assigned_items[com_id][item_id] then
+		--printf('take_item: item %s wasnt assigned to companion', item_id)
+		return
+	end
+	
+	MDATA.assigned_items[com_id][item_id] = nil
+	com:transfer_item(item,db.actor)
+	-- printf('item %s taken', item_id)
+end
+
+function is_assigned_item(npc_id, item_id)
+	if not (npc_id and item_id) then
+		printf('! is_assigned_item: one or more arguments nil: %s %s',npc_id, item_id)
+		return false
+	end
+	if MDATA.assigned_items[npc_id] then
+		return MDATA.assigned_items[npc_id][item_id]
+	else
+		-- npc has no assigned items
+		return false
+	end
+	
+end
+
+function is_assigned_companion(a,b)
+	local npc = a:id() > 0 and a or b
+	local npc_id = npc and npc:id()
+	
+	if not (npc_id) then
+		printf('! is_assigned_companion: id is nil: %s %s',npc_id)
+		return false
+	end
+	if MDATA.assigned_items[npc_id] then
+		return true
+	end
+	return false
+end
+
+function give_all_ok(a,b)
+	local npc = a:id() > 0 and a or b
+	local ow, totalw, maxw = txr_utils.is_npc_overweight(npc:id())
+	-- printf('ok check --- ow:%s -- %s > %s', ow, total_give_weight(), maxw - totalw)
+	if ow then return false end
+	return total_give_weight() <= (maxw - totalw)
+end
+
+function give_all_not_ok(a,b)
+	local npc = a:id() > 0 and a or b
+	local ow, totalw, maxw = txr_utils.is_npc_overweight(npc:id())
+	-- printf('not ok check --- ow:%s -- %s > %s', ow, total_give_weight(), maxw - totalw)
+	if ow then return true end
+	return total_give_weight() > (maxw - totalw)
+end
+
+function total_give_weight()
+	local function get_weight(sec)
+		return ini_sys:r_float_ex(sec,"inv_weight")
+	end
+	local w_itm = txr_utils.get_temp_weight_table()
+	
+	local total_to_give = 0
+
+	for i,v in ipairs(get_free_items()) do
+		local item = game_obj(v)
+		local item_sec = item:section()
+		if not w_itm[item_sec] then
+			w_itm[item_sec] = get_weight(item_sec)
+		end
+		total_to_give = total_to_give + w_itm[item_sec]
+	end
+	
+	return total_to_give
+end
+
+function get_free_items()
+
+	local free_items = {}
+	local act_inv = get_inventory_table_by_id(0)
+	if not act_inv then
+		printf('/ act_inv nil')
+		return
+	end
+	
+	--local busy_ammo = {}
+	--local checked = {}
+	
+	for k,v in pairs(act_inv) do
+		local equipped = false
+		local item = game_obj(v)
+		
+		if item then
+			for i=1,13 do
+				if (i ~= 4) then
+					local itm_slot = db.actor:item_in_slot(i)
+					if (itm_slot and itm_slot:id() == v) then
+						equipped = true
+						break
+					end
+				end
+			end
+		
+			local item_sec = item:section()
+			
+			for i=0,3 do
+				local itm_slot = get_console():get_string("slot_"..i)
+				-- printf('quick item %s',itm_slot)
+				if (itm_slot and itm_slot == item_sec) then
+					equipped = true
+					break
+				end
+			end
+		
+			if (db.actor:is_on_belt(item)) then
+				equipped = true
+			end
+			
+			-- these cause problems in list
+			if string.find(item_sec,'bolt') or string.find(item_sec,'pda') or string.find(item_sec,'cash') or string.find(item_sec,'torch') then
+				equipped = true
+			end
+			
+			if string.find(item_sec, 'ammo_') and is_ammo_for_wpn(item_sec) then
+				equipped = true
+			end
+			
+			if ini_sys:r_bool_ex(item_sec,"quest_item",false) then
+				equipped = true
+			end
+			
+			if not equipped then
+				table.insert(free_items, v)
+			end
+			-- else
+				-- printf('item in actor inventory %s is equipped, not transfered',v)
+			-- end
+		else
+			printf('item in actor inventory %s has no game object',v)
+		end
+	end
+	return free_items
+end
+
+function is_ammo_for_wpn(sec)
+	for i=1,3 do
+		local wpn = db.actor:item_in_slot(i)
+		if (wpn) then
+			local ammos = txr_utils.get_weapon_ammo_list(wpn,true)
+			if (ammos[sec]) then 
+				return true 
+			end
+		end
+	end
+	return false
+end

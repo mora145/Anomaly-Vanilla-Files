@@ -1,0 +1,216 @@
+--[[
+
+- Created by Tronex
+- Money management
+- 2018/9/13
+
+--]]
+
+
+local used_wallet = false -- preventing an exploit of infinite money
+
+function menu_money_100(obj)
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	if (db.actor:money() < 100) then
+		return
+	end
+	
+	local txt = game.translate_string("st_item_money")
+	txt = strformat(txt,"100")
+	
+	return txt
+end
+function menu_money_500(obj)
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	if (db.actor:money() < 500) then
+		return
+	end
+	
+	local txt = game.translate_string("st_item_money")
+	txt = strformat(txt,"500")
+	
+	return txt
+end
+function menu_money_1000(obj)
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	if (db.actor:money() < 1000) then
+		return
+	end
+	
+	local txt = game.translate_string("st_item_money")
+	txt = strformat(txt,"1000")
+	
+	return txt
+end
+function menu_money_5000(obj)
+	local p = obj:parent()
+	if not (p and p:id() == AC_ID) then return end
+	
+	if (db.actor:money() < 5000) then
+		return
+	end
+	
+	local txt = game.translate_string("st_item_money")
+	txt = strformat(txt,"5000")
+	
+	return txt
+end
+
+function use_money_100(obj)
+	used_wallet = true
+	txr_utils.create_inv_obj("money_100")
+	db.actor:give_money(-100)
+	txr_utils.play_sound("interface\\items\\inv_items_money_paper")
+end
+function use_money_500(obj)
+	used_wallet = true
+	txr_utils.create_inv_obj("money_500")
+	db.actor:give_money(-500)
+	txr_utils.play_sound("interface\\items\\inv_items_money_paper")
+end
+function use_money_1000(obj)
+	used_wallet = true
+	txr_utils.create_inv_obj("money_1000")
+	db.actor:give_money(-1000)
+	txr_utils.play_sound("interface\\items\\inv_items_money_paper")
+end
+function use_money_5000(obj)
+	used_wallet = true
+	txr_utils.create_inv_obj("money_5000")
+	db.actor:give_money(-5000)
+	txr_utils.play_sound("interface\\items\\inv_items_money_paper")
+end
+
+function actor_on_loot_money(npc)
+	local money = npc:money()
+	if money and (money > 0) and (money < 10000) then
+		local deadmoney = money
+		local npc_rank
+		local money_sec
+		npc_rank = ranks.get_obj_rank_name(npc)
+		if (npc_rank ~= nil) then
+			local eco_factor = difficulty_manager.get_eco_factor("money_loots") or 1
+		
+			if npc_rank == "novice" and money >=50            then deadmoney = math.random(50,200) * eco_factor
+			elseif npc_rank == "trainee" and money >=100      then deadmoney = math.random(100,300) * eco_factor 
+			elseif npc_rank == "experienced" and money >=200  then deadmoney = math.random(150,400) * eco_factor 
+			elseif npc_rank == "professional" and money >=300 then deadmoney = math.random(200,500) * eco_factor 
+			elseif npc_rank == "veteran" and money >=400      then deadmoney = math.random(300,600) * eco_factor 
+			elseif npc_rank == "expert" and money >=500       then deadmoney = math.random(400,700) * eco_factor  
+			elseif npc_rank == "master" and money >=600       then deadmoney = math.random(500,800) * eco_factor  
+			elseif npc_rank == "legend" and money >=800       then deadmoney = math.random(700,1000) * eco_factor  
+			end
+		end
+		
+		deadmoney = math.floor(deadmoney)
+		
+		if (deadmoney < 10)                              	then money_sec = "roubles"
+		elseif (deadmoney == 10)                         	then money_sec = "money_10"
+		elseif (deadmoney < 50) and (deadmoney > 10)     	then money_sec = "money_10_50"
+		elseif (deadmoney == 50)                         	then money_sec = "money_50"
+		elseif (deadmoney < 100) and (deadmoney > 50)    	then money_sec = "money_50_100"
+		elseif (deadmoney == 100)                        	then money_sec = "money_100"
+		elseif (deadmoney < 200) and (deadmoney > 100)   	then money_sec = "money_100_200"
+		elseif (deadmoney < 300) and (deadmoney > 200)   	then money_sec = "money_200_300"
+		elseif (deadmoney < 400) and (deadmoney > 300)   	then money_sec = "money_300_400"
+		elseif (deadmoney < 500) and (deadmoney > 400)   	then money_sec = "money_400_500"
+		elseif (deadmoney == 500)                        	then money_sec = "money_500"
+		elseif (deadmoney < 600) and (deadmoney > 500)   	then money_sec = "money_500_600"
+		elseif (deadmoney < 700) and (deadmoney > 600)   	then money_sec = "money_600_700"
+		elseif (deadmoney < 800) and (deadmoney > 700)   	then money_sec = "money_700_800"
+		elseif (deadmoney < 900) and (deadmoney > 800)   	then money_sec = "money_800_900"
+		elseif (deadmoney < 1000) and (deadmoney > 900)   	then money_sec = "money_900_1000"
+		elseif (deadmoney == 1000)                       	then money_sec = "money_1000"
+		elseif (deadmoney < 5000) and (deadmoney > 1000) 	then money_sec = "money_1000_5000"
+		elseif (deadmoney == 5000)                       	then money_sec = "money_5000"
+		elseif (deadmoney > 5000)                        	then money_sec = "money_5000_end"
+		end
+		
+		--local news_caption = "Dead stalker: "..npc:character_name()
+		--local news_text = "Found money: %c[255,255,0,0]"..game.translate_string(deadmoney).."%c[default] RU."
+		--xr_sound.set_sound_play(AC_ID, "pda_news")
+		--db.actor:give_game_news(news_caption, news_text, "ui_iconsTotal_found_money", 0, 10000)
+		--db.actor:give_money(deadmoney)
+		-- game_stats.money_quest_update(deadmoney) 
+		-- game_stats.money_quest_update(-money)
+		
+		npc:give_money(-money)
+		if money_sec and ini_sys:section_exist(money_sec) then
+			alife():create(money_sec, npc:position(), npc:level_vertex_id(), npc:game_vertex_id(), npc:id())
+		end
+	end
+end
+
+function npc_on_loot_money(npc,corpse_npc)
+	local corpse_money = corpse_npc:money()
+	if corpse_money and (corpse_money > 0) and (corpse_money < 10000) then
+		local gi_rank = ranks.get_obj_rank_name(corpse_npc)
+		if (gi_rank ~= nil) then
+			local eco_factor = difficulty_manager.get_eco_factor("money_loots") or 1
+			local deadmoney = math.random(25,400) * eco_factor 
+			if gi_rank == "novice" and corpse_money >=100 then deadmoney = math.random(25,400) * eco_factor    
+			elseif gi_rank == "trainee" and corpse_money >=200 then deadmoney = math.random(50,400) * eco_factor  
+			elseif gi_rank == "experienced" and corpse_money >=250 then deadmoney = math.random(200,500) * eco_factor  
+			elseif gi_rank == "professional" and corpse_money >=300 then deadmoney = math.random(400,600) * eco_factor 
+			elseif gi_rank == "veteran" and corpse_money >=350 then deadmoney = math.random(400,700) * eco_factor 
+			elseif gi_rank == "expert" and corpse_money >=400 then deadmoney = math.random(500,800) * eco_factor  
+			elseif gi_rank == "master" and corpse_money >=450 then deadmoney = math.random(500,900) * eco_factor  
+			elseif gi_rank == "legend" and corpse_money >=500 then deadmoney = math.random(600,1000) * eco_factor 
+			end
+			
+			deadmoney = math.floor(deadmoney)
+			npc:give_money(deadmoney) 
+			corpse_npc:give_money(-corpse_money) 
+		end
+	end
+end
+
+
+--=======================================< Callbacks >=======================================--
+local function actor_on_item_use(obj)
+	local name = obj:section()
+	local money = ini_sys:r_string_ex(name,"money_amount")
+	if money then
+		local t = alun_utils.str_explode(money,",")
+		if t[2] then
+			local min_amt = math.floor(tonumber(t[1])) or 10
+			local max_amt = math.floor(tonumber(t[2])) or 30
+			db.actor:give_money(math.random(min_amt,max_amt))
+		else
+			local amt = math.floor(tonumber(t[1])) or 10
+			db.actor:give_money(amt)
+		end
+	end
+end
+
+local function actor_on_item_take(obj) -- add money automatically to wallet
+	local name = obj:section()
+	local money = ini_sys:r_string_ex(name,"money_amount")
+	if money then
+		if used_wallet then
+			used_wallet = false
+			return
+		end
+		
+		-- Use
+		actor_on_item_use(obj)
+		
+		-- Delete
+		db.actor:drop_item(obj)
+		local se_obj = alife_object(obj:id())
+		if se_obj then
+			alife():release(se_obj,true)
+		end
+	end
+end
+
+function on_game_start()
+	RegisterScriptCallback("actor_on_item_use",actor_on_item_use)
+	RegisterScriptCallback("actor_on_item_take",actor_on_item_take)
+end

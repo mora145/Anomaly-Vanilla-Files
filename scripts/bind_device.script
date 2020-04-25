@@ -1,0 +1,62 @@
+-- Modified by tdef
+-- Saves device condition to marshal library
+
+function bind(obj)
+    obj:bind_object(device_binder(obj))
+end
+--------------------------------------------------------------------------------
+-- Class "device_binder"
+--------------------------------------------------------------------------------
+class "device_binder" (object_binder)
+-- Class constructor
+function device_binder:__init(obj) super(obj)
+	self.first_update_done = nil
+end
+-- Class update
+function device_binder:update(delta)
+    object_binder.update(self, delta)
+	if not self.first_update_done then
+		self.first_update_done = true
+		local id = self.object:id()
+		local mdata = alife_storage_manager.get_state()
+		if mdata.device_condition and mdata.device_condition[id] then
+			-- printf('setting condition of %s to %s',id,mdata.device_condition[id])
+			self.object:set_condition(mdata.device_condition[id])
+		end
+	end
+end
+-- Reload object
+function device_binder:reload(section)
+    object_binder.reload(self, section)
+end
+-- Reinitialize object
+function device_binder:reinit()
+    object_binder.reinit(self)
+end
+-- Net spawn
+function device_binder:net_spawn(se_abstract)
+    if not(object_binder.net_spawn(self, se_abstract)) then
+        return false
+    end
+	
+	local id = self.object:id()
+	db2.add_online_devices(id)
+	
+    return true
+end
+-- Net destroy
+function device_binder:net_destroy()
+	
+	local id = self.object:id()
+	db2.remove_online_devices(id)
+	
+	object_binder.net_destroy(self)
+end
+-- Save
+function device_binder:save(stpk)
+	
+end
+-- Load
+function device_binder:load(stpk)
+
+end

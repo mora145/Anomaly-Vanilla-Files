@@ -1,0 +1,67 @@
+--[[
+
+	Tronex
+	2019/8/23
+	textures caching hack
+	once you load your game, all textures defined in dds_table will be called then removed, allowing them to be reserved so they don't lag the game again
+
+--]]
+
+
+local dds_table = {
+	"ui\\ui_icon_equipment_hide",
+	"ui\\ui_icon_news_trx",
+	"ui\\ui_actor_newsmanager_icons",
+	"ui\\ui_wheel_ammo",
+}
+
+local cnt = 0
+local d_hud = {x=900,y=310,height=50,weight=50}
+
+function on_game_start()
+	RegisterScriptCallback("actor_on_update",actor_on_update)
+end
+
+function actor_on_update()
+	cnt = cnt + 1
+	local dds = dds_table[cnt]
+	
+	if (not dds) then
+		local hud = get_hud()
+		local pic = hud:GetCustomStatic("dds_cacher")
+		if (pic ~= nil) then
+			hud:RemoveCustomStatic("dds_cacher")
+		end
+		
+		printdbg("- Texture cache end")
+		
+		UnregisterScriptCallback("actor_on_update",actor_on_update)
+		
+		return
+	end
+	
+	local hud = get_hud()
+	local pic = hud:GetCustomStatic("dds_cacher")
+	local wnd
+	
+	if (pic ~= nil) then
+		hud:RemoveCustomStatic("dds_cacher")
+	end
+	
+	hud:AddCustomStatic("dds_cacher",true)
+	pic = hud:GetCustomStatic("dds_cacher")
+	wnd = pic:wnd()
+	
+	if (wnd ~= nil) then
+		wnd:SetWndPos(vector2():set(d_hud.x,d_hud.y))
+		wnd:SetWndSize(vector2():set(d_hud.weight,d_hud.height))
+		wnd:SetAutoDelete(true)
+	end
+	
+	if (pic ~= nil) then
+		wnd = pic:wnd()
+		wnd:InitTexture(dds)
+	end
+	
+	printdbg("- Texture cache: %s", dds)
+end

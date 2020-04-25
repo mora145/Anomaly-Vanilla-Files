@@ -1,0 +1,69 @@
+-- Modified by Tronex
+-- 2019/2/4
+-- Saves item uses to marshal library
+
+function bind(obj)
+    obj:bind_object(item_binder(obj))
+end
+--------------------------------------------------------------------------------
+-- Class "item_binder"
+--------------------------------------------------------------------------------
+class "item_binder" (object_binder)
+-- Class constructor
+function item_binder:__init(obj) super(obj)
+	self.first_update_done = nil
+end
+-- Class update
+function item_binder:update(delta)
+    object_binder.update(self, delta)
+	if not self.first_update_done then
+		self.first_update_done = true
+		local id = self.object:id()
+		local mdata = alife_storage_manager.get_state()
+		if mdata.item_remaining_uses and mdata.item_remaining_uses[id] then
+			 --printf('\setting uses of %s to %s',id,mdata.item_remaining_uses[id])
+			self.object:set_remaining_uses(mdata.item_remaining_uses[id])
+		end
+	end
+end
+-- Reload object
+function item_binder:reload(section)
+    object_binder.reload(self, section)
+end
+-- Reinitialize object
+function item_binder:reinit()
+    object_binder.reinit(self)
+end
+-- Net spawn
+function item_binder:net_spawn(se_abstract)
+    if not(object_binder.net_spawn(self, se_abstract)) then
+        return false
+    end
+	--[[
+	if (se_abstract.remaining_uses and se_abstract.remaining_uses > 0 and se_abstract.remaining_uses <= self.object:get_max_uses()) then
+		--printf("set remaining_uses on net spawn %s",se_abstract.remaining_uses)
+		self.object:set_remaining_uses(tonumber(se_abstract.remaining_uses) or 1)
+	end
+	--]]
+	
+	local id = self.object:id()
+	db2.add_online_multiuse(id)
+	
+    return true
+end
+-- Net destroy
+function item_binder:net_destroy()
+
+	local id = self.object:id()
+	db2.remove_online_multiuse(id)
+	
+	object_binder.net_destroy(self)
+end
+-- Save
+function item_binder:save(stpk)
+	--object_binder.save(self, stpk)
+end
+-- Load
+function item_binder:load(stpk)
+	--object_binder.load(self, stpk)
+end

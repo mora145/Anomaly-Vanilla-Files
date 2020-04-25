@@ -1,0 +1,173 @@
+--[[
+	Tronex
+	2019/11/27
+	Basic light commands controller
+	
+	Currently disabled until the issue with DX8 is fixed
+	To enable the script, uncomment lines inside on_game_start()
+--]]
+
+local d_key = "DIK_F6"
+local commands = {
+	[1] = { name= "ui_mm_video_basic_gamma",      	command= "r__gamma",      	def= 1, 		min= 0.5, 		max= 2.2, 		step= 0.1	},
+	[2] = { name= "ui_mm_video_basic_contrast", 	command= "r__saturation", 	def= 1, 		min= 0, 		max= 2, 		step= 0.1	},
+	[3] = { name= "ui_mm_video_basic_brightness",   command= "r__exposure",   	def= 1, 		min= 0.5, 		max= 4, 		step= 0.1	},
+}
+
+local ui -- don't touch
+local u_clamp, u_round 		=	 utils.clamp, utils.round
+local precision      = 6 -- allowed number of zeros
+
+function start()
+
+	local console = get_console()
+    console:execute("main_menu off")
+	--device():pause(true)
+	
+	local hud = get_hud()
+	if hud then
+		hud:HideActorMenu()
+	end
+		
+	if (not ui) then
+		ui = ui_ctrl_lighting()
+	end
+
+	if (ui) and (not ui:IsShown()) then
+		ui:ShowDialog(true)
+		
+		_G.KEYS_UNLOCK					= false
+	end
+end
+
+function on_key_release(key)
+	if (key == DIK_keys[d_key]) then
+		if db.actor
+		and db.actor:alive()
+		and (not device():is_paused())
+		--and (not (ui and ui:IsShown()))
+		then
+			start()
+		end
+	end
+end
+
+function actor_on_first_update()
+	local RENDERER = get_console():get_string("renderer")
+	if (RENDERER == 'renderer_r1') then
+		local hud = get_hud()
+		local cs = hud:GetCustomStatic("dx8_fill_shader")
+		if (not cs) then
+			printdbg("- ui_ctrl_lighting | Started dx8_fill_shader")
+			hud:AddCustomStatic("dx8_fill_shader")
+		end
+	end
+end
+
+function on_game_start()
+	--RegisterScriptCallback("on_key_release",on_key_release)
+	--RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
+end
+
+
+-------------------------------------------------------------------
+class "ui_ctrl_lighting" (CUIScriptWnd)
+
+function ui_ctrl_lighting:__init() super()
+	self:InitControls()
+end
+
+function ui_ctrl_lighting:__finalize()
+end
+
+function ui_ctrl_lighting:InitControls()
+	self:SetWndRect			(Frect():set(0,0,1024,768))
+	self:SetAutoDelete(true)
+	
+	self.xml = CScriptXmlInit()
+	
+	local xml = self.xml
+	xml:ParseFile			("ui_options.xml")
+	
+	local con = get_console()
+	self.dialog	= xml:InitStatic("ctrl_lighting", self)
+	
+	xml:InitFrame("ctrl_lighting:frame", self.dialog)
+	xml:InitStatic("ctrl_lighting:cap_main",self.dialog)
+	self.scroll = xml:InitScrollView("ctrl_lighting:scroll", self.dialog)
+	self.scroll:Clear()
+	
+	self.Track = {}
+	self.Value = {}
+	self.Num = {}
+	for i=1,#commands do
+		local _st = xml:InitStatic("ctrl_lighting:st", nil)
+		
+		local tbl = commands[i]
+		local name = tbl.name
+		local val = con:get_string(tbl.command)
+		val = tonumber(val)
+		local cap = xml:InitStatic("ctrl_lighting:cap", _st)
+		cap:TextControl():SetText( game.translate_string(name) )
+		
+		self.Track[i] = xml:InitTrackBar("ctrl_lighting:track", _st)
+		self.Track[i]:SetStep(tbl.step)
+		self.Track[i]:SetOptFBounds(tbl.min, tbl.max)
+		self.Track[i]:SetFValue(val)
+		self.Value[i] = val
+		self.Num[i] = xml:InitTextWnd("ctrl_lighting:num", _st)
+		self.Num[i]:SetText(val)
+		
+		self.scroll:AddWindow(_st, true)
+		_st:SetAutoDelete(true)
+	end
+end
+
+function ui_ctrl_lighting:Callback_Track(i, val)
+	local cmd = commands[i].command
+	if cmd and val then
+		get_console():execute(cmd .. " " .. val)
+		self.Num[i]:SetText(val)
+	end
+end
+
+function ui_ctrl_lighting:Update()
+	CUIScriptWnd.Update(self)
+	
+	-- Hack to simulate tracing method for TrackBar value changes. TODO: add callback support for CUITrackBar in engine, this is just silly
+	for i,ctrl in pairs(self.Track) do
+		if ctrl:IsCursorOverWindow() then
+			local val = u_round(ctrl:GetFValue(), precision)
+			if (val ~= self.Value[i]) then
+				self.Value[i] = val
+				self:Callback_Track(i, val)
+				return
+			end
+		end
+	end
+end
+
+function ui_ctrl_lighting:OnKeyboard(dik, keyboard_action)
+	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
+	if (res == false) then
+		local bind = dik_to_bind(dik)
+		if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+		
+			if dik == DIK_keys.DIK_ESCAPE then
+				self:OnCancel()
+			end
+
+		end
+	end
+
+	return res
+end
+
+function ui_ctrl_lighting:OnCancel()
+	self:HideDialog()
+	self:Show(false)
+	--ui = nil
+
+	_G.KEYS_UNLOCK					= true
+	--device():pause(false)
+end

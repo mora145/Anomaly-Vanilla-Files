@@ -1,0 +1,84 @@
+--[[
+	Made by tdef
+	Last Edit: 2019/7/15
+	NPC weapon jam
+--]]
+
+local sfind = string.find
+
+local GUN_TRACKING = {}
+
+function clamp(val, min, max)
+	local x = val
+	x = x > max and max or x
+	x = x < min and min or x
+	return x
+end
+
+function printl(frmt, ...)
+	-- printf(strformat(frmt, ...))
+end
+
+local SETTINGS
+function npc_on_update(npc)
+
+	if
+		not SETTINGS.enabled or
+		not db.actor or			-- skip if game isn't loaded yet
+		not npc or 				-- skip if npc is null to avoid crash
+		not npc:alive() or 		-- skip if npc is dead, can't shoot to jam or run out of ammo
+		not npc:best_enemy() 	-- skip not fighting, not using ammo
+	then
+		return
+	end
+	
+	
+	local itm = npc:active_item()
+	if not itm then return end -- skip if npc has no gun in hand
+	if not IsWeapon(itm) then return end -- skip if npc isn't holding a weapon 
+	
+	local npc_id = npc:id()
+	local npc_rank = ranks.get_obj_rank_name(npc)
+	
+	local gun_id = itm:id()
+	local gun_sec = itm:section()
+	
+	
+	if not GUN_TRACKING[gun_id] then GUN_TRACKING[gun_id] = {} end
+	
+	local ammo_now = itm:get_ammo_in_magazine()
+	local ammo_then = GUN_TRACKING[gun_id].ammo_last_update or ammo_now
+	local ammo_spent = ammo_then - ammo_now 
+	GUN_TRACKING[gun_id].ammo_last_update = ammo_now
+	
+	printl('ammo difference: %s - %s = %s', ammo_spent, ammo_now, ammo_spent)
+	-- calculate and apply jam
+	local new_ammo
+	if ammo_spent > 0 then
+		local chance = clamp(SETTINGS['base_ch_'..npc_rank] * ammo_spent, 0, SETTINGS['max_ch_'..npc_rank])
+		
+		if chance > 0 then 
+			printl('npc %s (%s) chance to jam is %s', npc_id, npc_rank, chance)
+		end
+		
+		local jam = math.random(0, 100) <= chance
+		
+		if jam then 
+			itm:unload_magazine()
+			printl('jamming gun %s (%s) on npc %s (%s)', gun_id, gun_sec, npc_id, npc_rank)
+		end
+	end
+end
+
+function on_game_start()
+	-- Setup
+	local ini = ini_file("plugins\\npc_jam.ltx")
+	SETTINGS = alun_utils.parse_ini_section_to_array(ini, "settings")
+	for k,v in pairs(SETTINGS) do
+		if sfind(k,'_ch_') then
+			SETTINGS[k] = tonumber(v)
+		end
+	end
+		
+	RegisterScriptCallback('npc_on_update', npc_on_update)
+end

@@ -1,0 +1,336 @@
+
+--[[
+
+	Made by Tronex
+	Last edit: 2019/8/26
+	Quick-selection interface of ammunition (Ammo wheel) for active weapon
+	
+--]]
+
+local ui = nil
+local cache_ammo = {}
+
+local grenade_classes = { 
+	["ammo_m209"]           = true,
+	["ammo_m209_bad"]       = true,
+	["ammo_m209_verybad"]   = true,
+	["ammo_vog-25"]         = true,
+	["ammo_vog-25_bad"]     = true,
+	["ammo_vog-25_verybad"] = true,
+	["ammo_og-7b"]          = true,
+	["ammo_og-7b_bad"]      = true,
+	["ammo_og-7b_verybad"]  = true,
+}
+
+function clear_cache()
+	empty_table(cache_ammo)
+end
+
+local function on_key_release(key)
+	local bind = dik_to_bind(key)
+	if (bind == key_bindings.kWPN_NEXT) then
+		local last_ui_mode = actor_menu.get_last_mode()
+		if (last_ui_mode == 0) then
+			if (not ui) then
+				local wpn = db.actor:active_item()
+				if wpn and IsWeapon(wpn) and (not itms_manager.itms_no_ammo[wpn:section()]) then
+					local hud = get_hud()
+					if (hud) then
+						hud:HideActorMenu()
+					end
+					
+					ui = ammo_wheel_ui(hud,wpn)
+					if (ui) then
+						ui:ShowDialog(true)
+					end
+				end
+			else
+				--ui:OnCancel()
+				ui:SwitchNextAmmo()
+			end
+			
+		elseif ui then
+			--ui:OnCancel()
+			ui:SwitchNextAmmo()
+		end
+	
+	elseif ui and (key == DIK_keys["DIK_ESCAPE"]) then
+		ui:OnCancel()
+		
+	elseif ui and (key == DIK_keys["DIK_1"]) then
+		ui:OnAmmo_1()
+	elseif ui and (key == DIK_keys["DIK_2"]) then
+		ui:OnAmmo_2()
+	elseif ui and (key == DIK_keys["DIK_3"]) then
+		ui:OnAmmo_3()
+	elseif ui and (key == DIK_keys["DIK_4"]) then
+		ui:OnAmmo_4()
+	elseif ui and (key == DIK_keys["DIK_5"]) then
+		ui:OnAmmo_5()
+	elseif ui and (key == DIK_keys["DIK_6"]) then
+		ui:OnAmmo_6()
+	elseif ui and (key == DIK_keys["DIK_7"]) then
+		ui:OnAmmo_7()
+	elseif ui and (key == DIK_keys["DIK_8"]) then
+		ui:OnAmmo_8()
+	elseif ui and (key == DIK_keys["DIK_9"]) then
+		ui:OnAmmo_9()
+	elseif ui and (key == DIK_keys["DIK_0"]) then
+		ui:OnAmmo_10()
+		
+	elseif ui and (key == DIK_keys["DIK_NUMPAD1"]) then
+		ui:OnAmmo_1()
+	elseif ui and (key == DIK_keys["DIK_NUMPAD2"]) then
+		ui:OnAmmo_2()
+	elseif ui and (key == DIK_keys["DIK_NUMPAD3"]) then
+		ui:OnAmmo_3()
+	elseif ui and (key == DIK_keys["DIK_NUMPAD4"]) then
+		ui:OnAmmo_4()
+	elseif ui and (key == DIK_keys["DIK_NUMPAD5"]) then
+		ui:OnAmmo_5()
+	elseif ui and (key == DIK_keys["DIK_NUMPAD6"]) then
+		ui:OnAmmo_6()
+	elseif ui and (key == DIK_keys["DIK_NUMPAD7"]) then
+		ui:OnAmmo_7()
+	elseif ui and (key == DIK_keys["DIK_NUMPAD8"]) then
+		ui:OnAmmo_8()
+	elseif ui and (key == DIK_keys["DIK_NUMPAD9"]) then
+		ui:OnAmmo_9()
+	elseif ui and (key == DIK_keys["DIK_NUMPAD0"]) then
+		ui:OnAmmo_10()
+		
+	end
+end
+
+function on_game_start()
+	RegisterScriptCallback("on_key_release",on_key_release)
+end
+
+
+-------------------------------------------------------------------
+class "ammo_wheel_ui" (CUIScriptWnd)
+
+function ammo_wheel_ui:__init(owner,obj) super()
+	self.owner = owner
+	self.object = obj
+	self.id = obj:id()
+	self.section = obj:section()
+	self.ammo_type = obj:get_ammo_type()
+	
+	-- Collect weapon's ammo list
+	if (not cache_ammo[self.id]) then
+		cache_ammo[self.id] = txr_utils.get_weapon_ammo_list(obj)
+		
+		-- Cut anything with more than 12 ammo types
+		if (#cache_ammo[self.id] > 12) then
+			for i=12,#cache_ammo[self.id] do
+				cache_ammo[self.id][i] = nil
+			end
+		end
+	end
+	self.ammo_list = cache_ammo[self.id]
+	
+	-- Collect all ammo in inventory
+	self.ammo_inv = {}
+	local function itr(temp, obj)
+		local sec = obj:section()
+		if itms_manager.is_ammo(nil,sec) or grenade_classes[sec] then
+			self.ammo_inv[sec] = (self.ammo_inv[sec] or 0) + obj:ammo_get_count()
+		end
+	end
+	db.actor:iterate_inventory(itr, nil)
+	
+	-- Collect available ammo in actor inventory
+	self.avail = {}
+	
+	self:InitControls()
+	self:InitCallBacks()
+end
+
+function ammo_wheel_ui:__finalize()
+end
+
+function ammo_wheel_ui:InitControls()
+	self:SetWndRect			(Frect():set(0,0,1024,768))
+	self:SetAutoDelete(true)
+	
+	self.xml				= CScriptXmlInit()
+	local xml = self.xml
+	xml:ParseFile			("ui_wheel_ammo.xml")
+
+	self.dialog	= xml:InitStatic(((#self.ammo_list > 9) and "frame_extended" or "frame"), self)
+	
+	self.box = {}
+	self.icon = {}
+	self.num = {}
+	self.txt = {}
+	self.btn = {}
+	for i=1,#self.ammo_list do
+		self.box[i] = xml:InitStatic("box_" .. i, self.dialog)
+		
+		-- Highlight current ammo type
+		if (self.ammo_type == (i - 1)) then
+			xml:InitStatic("temp:highlight", self.box[i])
+			xml:InitStatic("temp:highlight", self.box[i])
+		end
+		
+		self.icon[i] = xml:InitStatic("temp:icon", self.box[i])
+		self.txt[i] = xml:InitTextWnd("temp:text", self.box[i])
+		self.btn[i] = xml:Init3tButton("temp:btn", self.box[i])
+		self:Register(self.btn[i],"btn_" .. i)
+		
+		-- Set up icon
+		local ammo = self.ammo_list[i]
+		self.avail[i] = self.ammo_inv[ammo] and (self.ammo_inv[ammo] > 0) and true
+		txr_utils.set_up_icon(ammo, (not self.avail[i]), self.icon[i], self.icon[i])
+		
+		if self.avail[i] and i <= 9 then
+			self.num[i] = xml:InitTextWnd("temp:num", self.box[i])
+			self.num[i]:SetText(i)
+		end
+		
+		-- Show ammo count
+		self.txt[i]:SetText("x" .. (self.avail[i] and self.ammo_inv[ammo] or 0))
+	end
+	
+	-- Ammo highlight
+	self.box_r = xml:InitStatic("result", self.dialog)
+	self.icon_r = xml:InitStatic("temp:icon", self.box_r)
+	self.icon_tmp_r = xml:InitStatic("temp:icon", self.box_r)
+	self.txt_r = xml:InitTextWnd("temp:text_r", self.box_r)
+end
+
+function ammo_wheel_ui:InitCallBacks()
+	for i=1,#self.ammo_list do
+		self:AddCallback("btn_" .. i, ui_events.BUTTON_CLICKED, self["OnAmmo_"..i], self)
+	end
+end
+
+local last_highlight
+function ammo_wheel_ui:Update()
+	CUIScriptWnd.Update(self)
+	
+	for i=1,#self.ammo_list do
+		if (self.btn[i] and self.btn[i]:IsCursorOverWindow()) and (last_highlight ~= i) then
+			last_highlight = i
+			local ammo = self.ammo_list[i]
+			txr_utils.set_up_icon(ammo, nil, self.icon_r, self.icon_tmp_r)
+			self.txt_r:SetText(ui_item.get_sec_name(ammo))
+		end
+	end
+end
+
+---------------< Callbacks >---------------
+function ammo_wheel_ui:SwitchNextAmmo()
+	local wpn = db.actor:active_item()
+	if wpn and (wpn:section() == self.section) then
+		
+		local new_type
+		local ammo_type = wpn:get_ammo_type()
+		
+		-- Search for available next ammo types
+		for i=(ammo_type + 2),12 do -- +2 because we need next type (+1 is the current type in ammo table)
+			if self.avail[i] then
+				new_type = i
+				break
+			end
+		end
+		
+		-- Search for available earlier ammo types
+		if (not new_type) then
+			for i=1,ammo_type do
+				if self.avail[i] then
+					new_type = i
+					break
+				end
+			end
+		end
+		
+		if new_type then
+			--[[ Give back ammo
+			local ammo_sec = self.ammo_list[ammo_type + 1]
+			local ammo_elapsed = wpn:get_ammo_in_magazine()
+			if (ammo_elapsed > 0) then
+				create_ammo(ammo_sec, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID, ammo_elapsed)
+			end
+			--]]
+			
+			wpn:unload_magazine(true)
+			
+			wpn:set_ammo_type(new_type - 1) -- ammo type starts from 0
+
+			db.actor:reload_weapon()
+		end
+	end
+
+	self:OnCancel()
+end
+
+function ammo_wheel_ui:OnAmmo(n)
+	local wpn = db.actor:active_item()
+	if wpn and (wpn:section() == self.section) and self.avail[n] then
+		
+		local ammo_type = wpn:get_ammo_type()
+		if (ammo_type ~= n - 1) then
+			
+			--[[ Give back ammo
+			local ammo_sec = self.ammo_list[ammo_type + 1]
+			local ammo_elapsed = wpn:get_ammo_in_magazine()
+			if (ammo_elapsed > 0) then
+				create_ammo(ammo_sec, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), AC_ID, ammo_elapsed)
+			end
+			--]]
+			
+			wpn:unload_magazine(true)
+			
+			wpn:set_ammo_type(n - 1) -- ammo type starts from 0
+
+			db.actor:reload_weapon()
+		end
+	end
+
+	self:OnCancel()
+end
+
+function ammo_wheel_ui:OnAmmo_1()
+	self:OnAmmo(1)
+end
+function ammo_wheel_ui:OnAmmo_2()
+	self:OnAmmo(2)
+end
+function ammo_wheel_ui:OnAmmo_3()
+	self:OnAmmo(3)
+end
+function ammo_wheel_ui:OnAmmo_4()
+	self:OnAmmo(4)
+end
+function ammo_wheel_ui:OnAmmo_5()
+	self:OnAmmo(5)
+end
+function ammo_wheel_ui:OnAmmo_6()
+	self:OnAmmo(6)
+end
+function ammo_wheel_ui:OnAmmo_7()
+	self:OnAmmo(7)
+end
+function ammo_wheel_ui:OnAmmo_8()
+	self:OnAmmo(8)
+end
+function ammo_wheel_ui:OnAmmo_9()
+	self:OnAmmo(9)
+end
+function ammo_wheel_ui:OnAmmo_10()
+	self:OnAmmo(10)
+end
+function ammo_wheel_ui:OnAmmo_11()
+	self:OnAmmo(11)
+end
+function ammo_wheel_ui:OnAmmo_12()
+	self:OnAmmo(12)
+end
+
+function ammo_wheel_ui:OnCancel()
+	self:HideDialog()
+	self:Show(false)
+	ui = nil
+end

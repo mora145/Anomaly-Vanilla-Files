@@ -1,0 +1,318 @@
+--[[
+	Made by Tronex
+	Last edit: 2019/7/9
+	Stalkers PDA UI
+--]]
+
+local gc = game.translate_string
+
+-------------------------------------------------------------------
+class "pda_message_entry" (CUIListBoxItem)
+function pda_message_entry:__init(title, sender, msg_date, indx) super(title, sender, msg_date, indx)
+	self:GetTextItem():SetText("")
+	
+	self.title = title
+	self.sender = sender
+	self.msg_date = msg_date
+	self.indx = indx
+	
+	self.str_title = self:AddTextField("",1) --self:GetTextItem()
+	self.str_title:SetWndRect(Frect():set(5, 0, 300, 17))
+	self.str_title:SetTextColor(GetARGB(255, 200, 200, 200))
+	self.str_title:SetFont(GetFontLetterica18Russian())
+	self.str_title:SetWndSize(vector2():set(400, 20))
+	self.str_title:SetEllipsis(true)
+	self.str_title:SetText(self.title)
+	
+	self.str_sender = self:AddTextField("",1) --self:GetTextItem()
+	self.str_sender:SetWndRect(Frect():set(5, 15, 300, 17))
+	self.str_sender:SetTextColor(GetARGB(255, 150, 150, 180))
+	self.str_sender:SetFont(GetFontLetterica16Russian())
+	self.str_sender:SetWndSize(vector2():set(400, 20))
+	self.str_sender:SetEllipsis(true)
+	self.str_sender:SetText(self.sender)
+
+	self.str_date = self:AddTextField("",1) --self:GetTextItem()
+	self.str_date:SetWndRect(Frect():set(5, 30, 300, 17))
+	self.str_date:SetTextColor(GetARGB(255, 150, 150, 180))
+	self.str_date:SetFont(GetFontLetterica16Russian())
+	self.str_date:SetWndSize(vector2():set(400, 20))
+	self.str_date:SetEllipsis(true)
+	self.str_date:SetText(self.msg_date)
+end
+
+-------------------------------------------------------------------
+class "pda_ui" (CUIScriptWnd)
+function pda_ui:__init(owner,obj,info,power) super()
+	self.owner = owner
+	self.obj = obj
+	--self.info = info
+	self.state = info.state
+	self.msg = info.msg
+	self.contact = info.contact
+	self.power = power
+	
+	self:InitControls()
+	self:InitCallBacks()
+	
+	if self.power and (self.state == "default") then
+		self:FillData()
+	end
+end
+
+function pda_ui:__finalize()
+end
+
+function pda_ui:InitControls()
+	self:SetWndRect			(Frect():set(0,0,1024,768))
+	self:SetAutoDelete(true)
+
+	self.xml				= CScriptXmlInit()
+	self.xml:ParseFile			("ui_itm_main.xml")
+
+	local ctrl					= CUIWindow()
+	ctrl:SetAutoDelete(true)
+	
+	self.form				= self.xml:InitStatic("itm_pda:form",self)
+	self.form_text 			= self.xml:InitTextWnd("itm_pda:form:state", self.form)
+	
+	if (not self.power) then
+		self.form_text:SetText(gc("ui_st_npc_pda_low_power"))
+		self.form_text:SetTextColor(GetARGB(255, 155, 1, 1))
+		--self.battery_power = self.xml:InitStatic("itm_pda:form:battery_low", self.form)
+		CreateTimeEvent(0,"tick_pda_battery", 0.5, self.TickBattery, self)
+	elseif (self.state == "encrypted") then
+		self.form_text:SetText(gc("ui_st_npc_pda_access_denied"))
+		self.form_text:SetTextColor(GetARGB(255, 155, 155, 1))
+	elseif (self.state == "kill_the_strelok") then -- ;)
+		self.form_text:SetText(gc("ui_st_npc_pda_strelok"))
+		if (not has_alife_info("kill_the_strelok_pda_found")) then
+			give_info("kill_the_strelok_pda_found")
+		end
+		--self.form_text:SetTextColor(GetARGB(255, 255, 1, 1))
+	else
+		-- Borders
+		self.xml:InitFrame			("itm_pda:form:border",self.form)
+		
+		-- Contact Info
+		self.contact_info = {
+			icon = self.xml:InitStatic("itm_pda:form:contact:icon", self.form),
+			name = self.xml:InitTextWnd("itm_pda:form:contact:name", self.form),
+			comm = self.xml:InitTextWnd("itm_pda:form:contact:comm", self.form),
+			rank = self.xml:InitTextWnd("itm_pda:form:contact:rank", self.form),
+			repu = self.xml:InitTextWnd("itm_pda:form:contact:rep", self.form),
+		}
+		self.contact_info.icon:InitTexture("ui\\ui_noise")
+		self.contact_info.icon:SetStretchTexture(true)
+		
+		self.contact_info.name:SetText("Unknown")
+		
+		-- Messages list
+		self.message_list = self.xml:InitListBox("itm_pda:form:message_list", self.form)
+		self:Register(self.message_list, "message_list")
+		
+		-- Text information, footer image (and container), and the scrollbar.
+		self.information = self.xml:InitTextWnd("itm_pda:form:description:information", nil)
+		self.information2 = self.xml:InitTextWnd("itm_pda:form:description:information2", nil)
+		self.image_container = self.xml:InitStatic("itm_pda:form:description:image_container", nil)
+		self.image = self.xml:InitStatic("itm_pda:form:description:image_container:image", self.image_container)
+		self.scrollbar = self.xml:InitScrollView("itm_pda:form:description:scrollbar", self.form)
+		
+		-- Add components to the scrollbar.
+		self.scrollbar:AddWindow(self.information, true)
+		self.scrollbar:AddWindow(self.information2, true)
+		self.scrollbar:AddWindow(self.image_container, true)
+		
+		-- Prevent components being deleted while used.
+		self.information:SetAutoDelete(false)
+		self.information2:SetAutoDelete(false)
+		self.image_container:SetAutoDelete(false)
+		self.image:SetAutoDelete(false)
+	end
+	
+	self.noise = self.xml:InitStatic("itm_pda:form:noise", self.form)
+	self.noise:InitTexture("ui\\items\\screen_noise\\screen_noise")
+	self.noise:SetStretchTexture(true)
+	
+	-- Button OK
+	ctrl = self.xml:Init3tButton("itm_pda:form:btn_ok",self.form)
+	self:Register(ctrl, "button_ok")
+end
+
+function pda_ui:InitCallBacks()
+	self:AddCallback("button_ok",ui_events.BUTTON_CLICKED,self.OnButton_ok,self)
+	self:AddCallback("message_list",ui_events.LIST_ITEM_CLICKED,self.OnSelectMessage,self)
+end
+
+function pda_ui:FillData()
+	self.message_list:RemoveAll()
+	txr_utils.play_sound("interface\\inv_pda_on")
+	
+	-- Set up name
+	local name = string.gsub(self.contact.name, "Junior", "Jr.")
+	name = string.gsub(name, "Senior", "Sr.")
+	name = string.gsub(name, "Master ", "M.")
+	name = string.gsub(name, "Private", "Pvt.")
+	name = string.gsub(name, "Sergeant", "Sgt.")
+	name = string.gsub(name, "Lieutenant", "Lt.")
+	name = string.gsub(name, "Captain", "Cpt.")
+	name = string.len(name) <= 22 and name or string.sub(name, 0, 19) .. "..."
+	
+	-- Fill contact info
+	self.contact_info.icon:InitTexture(self.contact.icon)
+	self.contact_info.name:SetText(name)
+	self.contact_info.comm:SetText(gc("ui_st_community") .. ": " .. gc(self.contact.comm))
+	self.contact_info.rank:SetText(gc("ui_st_rank") .. ": " .. gc("st_rank_" .. self.contact.rank))
+	self.contact_info.repu:SetText(gc("ui_st_reputation") .. ": " .. gc(alun_utils.get_reputation_name(self.contact.repu)))
+	
+	-- Fill messages list
+	local st_date = game.translate_string("date")
+	for i=1,#self.msg do
+		local title = self.msg[i].topic_title
+		local msg_date = strformat( (st_date .. ": %s") , self.msg[i].msg_date)
+		local sender = (not self.msg[i].stash) and strformat("%s %s" , self.msg[i].c1_fname , self.msg[i].c1_lname) or name
+		item = pda_message_entry(gc(title), sender, msg_date, i)
+		self.message_list:AddExistingItem(item)
+	end
+end
+
+function pda_ui:OnSelectMessage()
+	if self.message_list:GetSize()==0 then return end
+
+	local item = self.message_list:GetSelectedItem()
+	if not (item) then
+		return
+	end
+	
+	local indx = item.indx
+	local finale_content = ""
+	local keys = {}
+	
+	local topic = self.msg[indx].topic
+	local content = ""
+	for i=1,#topic do
+		content = content .. " \\n" .. gc(topic[i])
+	end
+	
+	keys["fname"] = self.msg[indx].fname
+	keys["lname"] = self.msg[indx].lname
+	keys["c1_fname"] = self.msg[indx].c1_fname
+	keys["c1_lname"] = self.msg[indx].c1_lname
+	keys["c2_fname"] = self.msg[indx].c2_fname
+	keys["c2_lname"] = self.msg[indx].c2_lname
+	keys["leader"] = gc(self.msg[indx].leader)
+	keys["base"] = gc(self.msg[indx].base)
+	keys["trader"] = gc(self.msg[indx].trader)
+	keys["mechanic"] = gc(self.msg[indx].mechanic)
+	keys["map"] = gc(self.msg[indx].map)
+	keys["pointer"] = gc(self.msg[indx].pointer)
+	keys["directional"] = gc(self.msg[indx].directional)
+	keys["enemy"] = gc(self.msg[indx].enemy)
+	
+	-- Map route messages
+	if self.msg[indx].route then
+		local route = self.msg[indx].route
+		txr_routes.open_route(route[1],route[2])
+		keys["map_route_1"] = gc(txr_routes.get_section(route[1]))
+		keys["map_route_2"] = gc(txr_routes.get_section(route[2]))
+	end
+	
+	-- RF source messages
+	if self.msg[indx].rf_map and self.msg[indx].rf_freq then
+		keys["rf_map"] = gc(self.msg[indx].rf_map)
+		keys["rf_freq"] = tostring(self.msg[indx].rf_freq)
+	end
+	
+	finale_content = txr_utils.read_text_keylist(content, keys)
+	
+	-- Stash messages
+	if self.msg[indx].stash and (not self.msg[indx].stash_read) then
+		local hint = "%c[255,255,160,0]" .. gc(self.msg[indx].topic_title) .. "\\n%c[default]" .. (finale_content or "") .. "\\n%c[160,100,100,200]" .. gc("st_stash_of") .. " " .. self.contact.name
+		treasure_manager.set_random_stash( nil , hint , nil , self.msg[indx].stash)
+		self.msg[indx].stash_read = true
+		self.msg[indx].topic[1] = self.msg[indx].topic[1] or (gc("st_stash_of") .. " " .. self.contact.name)
+	end
+
+	if self.msg[indx].pic then
+		-- Set the message's image.
+		-- A bit hacky, but to allow for dynamic width/height we have to initialise the texture twice.
+		-- We load the texture, grab its dimensions, set the window size then reinitialise it a second time.
+		-- If we don't do this then for whatever weird and wonderful reason the image refuses to draw on the UI.
+		self.image:InitTexture(self.msg[indx].pic)
+		
+		-- Grab the dimensions of the image to resize the container.
+		local image_width = 315 --self.image:GetTextureRect().x2 - self.image:GetTextureRect().x1
+		local image_height = 157 --self.image:GetTextureRect().y2 - self.image:GetTextureRect().y1
+		
+		-- Offset is used to add "padding" around the image when text is present.
+		-- If images appear above text and there is no height to the image, then use no offset.
+		local image_offset = (image_height > 0 and 7 or 0) 
+		
+		-- Resize the image and container, and then reinitialise the texture so it gets drawn.
+		-- The x_coefficient variable is used to fix image stretchiness when using widescreen resolutions.
+		local x_coefficient = (device().height / device().width) / (768 / 1024)
+		self.image_container:SetWndSize(vector2():set(image_width, image_height + image_offset))
+		self.image:SetWndSize(vector2():set(image_width * x_coefficient, image_height))
+		self.image:SetStretchTexture(true)
+		self.image:InitTexture(self.msg[indx].pic)
+	end
+
+	local information_offset = 10
+	
+	-- Adjust the text component size.
+	self.information:SetText(finale_content)
+	self.information:AdjustHeightToText()
+	self.information:SetWndSize(vector2():set(self.information:GetWidth(), self.information:GetHeight() + information_offset))
+	self.information2:SetText("")
+	self.information2:AdjustHeightToText()
+	self.information2:SetWndSize(vector2():set(self.information2:GetWidth(), self.information2:GetHeight() + information_offset))
+	
+	-- Clear the scrollbar.
+	self.scrollbar:Clear()
+	
+	-- Add the text and image to the article window.
+	if self.msg[indx].pic then
+		self.scrollbar:AddWindow(self.image_container, true)
+		self.image_container:SetAutoDelete(false)
+		self.image:SetAutoDelete(false)
+	end
+	self.scrollbar:AddWindow(self.information, true)
+	self.information:SetAutoDelete(false)
+	self.scrollbar:AddWindow(self.information2, true)
+	self.information2:SetAutoDelete(false)
+end
+
+function pda_ui:OnButton_ok()
+	txr_utils.play_sound("interface\\inv_pda_off")
+	RemoveTimeEvent(0,"tick_pda_battery")
+	self:HideDialog()
+end
+
+function pda_ui:OnKeyboard(dik, keyboard_action)
+	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
+	if (res == false) then
+		local bind = dik_to_bind(dik)
+		if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+			if dik == DIK_keys.DIK_ESCAPE then
+				self:OnButton_ok()
+			end
+		end
+	end
+	return res
+end
+
+local battery_toggle = false
+function pda_ui:TickBattery()
+	ResetTimeEvent(0,"tick_pda_battery",0.5)
+	
+	battery_toggle = not battery_toggle
+	if battery_toggle then
+		self.form_text:SetText(game.translate_string("ui_st_npc_pda_low_power"))
+		--self.battery_power:InitTexture("ui_battery_low_power")
+		--self.battery_power:SetStretchTexture(true)
+	else
+		self.form_text:SetText("")
+		--self.battery_power:InitTexture("ui_battery_low_power_empty")
+		--self.battery_power:SetStretchTexture(true)
+	end
+end

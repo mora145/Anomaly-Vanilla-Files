@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="windows-1251"?>
+
+<!--
+	Faction Patches
+-->
+<string_table>
+	<string id="st_matches">
+		<text>Firestarter set</text>
+	</string>
+	<string id="st_matches_descr">
+		<text>Un conjunto simple de palos de madera de pino impregnados de resina. Cualquiera que haya intentado encender un fuego al aire libre sabe que r&#225;fagas de viento al azar pueden extinguir las llamas muy r&#225;pidamente. The firestarter set allows you to create a small but steady hearth fire, the temperature of which is significantly higher than that of paper or wax. An indispensable thing in any campaign, because it easy to light up even in the wet.\n\n\n %c[d_green] &#8226; %c[ui_gray_2] is used for starting fires</text>
+	</string>
+	
+	<string id="st_wood_stove">
+		<text>Hexagon wood stove</text>
+	</string>
+	<string id="st_wood_stove_descr">
+		<text>Este horno plegable compacto est&#225; dise&#241;ado para cocinar comidas individuales con madera seca. Sin embargo, dado que la madera que se encuentra dentro de la Zona est&#225; demasiado contaminada como para ser utilizada con ese fin, los stalkers dependen del carb&#243;n importado como el material combustible m&#225;s barato y ampliamente disponible. The stove can produce temperatures sufficient to grill less poisoned mutant meat, but preparing more toxic meat requires the utilisation of more advanced equipment. Se necesitan habilidades b&#225;sicas con el fuego. Made of stainless steel and ultralight titanium.\n \n %c[ui_gray_3]NOTES:\n \n %c[ui_gray_1]Although charcoal is available in the Zone at relatively cheap prices, you need to use a significant amount of it in order to prepare a single meal. Por esta raz&#243;n, el carb&#243;n no es tan rentable como parece. On the other hand, it is relatively light, which makes it perfect for longer trips deep in the Zone.\n \n %c[ui_gray_1]Mutant meats that do not require high temperature to be prepared are referred to as 'low-tier', whereas those that require high temperature - 'high-tier'.\n \n %c[ui_gray_3]PROPERTIES:\n %c[d_blue] &#8226; %c[ui_gray_2] technological item\n %c[d_green] &#8226; %c[ui_gray_2] low-tier field cooking equipment\n %c[d_green] &#8226; %c[ui_gray_2] fuel: %c[ui_gray_1] charcoal\n %c[d_green] &#8226; %c[ui_gray_2] usable for cooking meats of lesser mutants\n</text>
+	</string>
+	
+	<string id="st_cooking">
+		<text>Kit de cocina de campo</text>
+	</string>
+	<string id="st_cooking_descr">
+		<text>Un kit de cocina de campo. Contiene accesorios y utensilios de cocina para usar cuando se acampa y se viaja. Produce mucho ruido y es dif&#237;cil de manejar debido a su gran peso. Very popular among larger groups of stalkers.\n \n %c[ui_gray_3]NOTES:\n \n %c[ui_gray_1]Although charcoal is available in the Zone at relatively cheap prices, you need to use a significant amount of it in order to prepare a single meal. Por esta raz&#243;n, el carb&#243;n no es tan rentable como parece. On the other hand, it is relatively light, which makes it perfect for longer trips deep in the Zone.\n \n %c[ui_gray_1]Mutant meats that do not require high temperature to be prepared are referred to as 'low-tier', whereas those that require high temperature - 'high-tier'.\n \n %c[ui_gray_3]PROPERTIES:\n %c[d_blue] &#8226; %c[ui_gray_2] technological item\n %c[d_green] &#8226; %c[ui_gray_2] low-tier field cooking equipment\n %c[d_green] &#8226; %c[ui_gray_2] fuel: %c[ui_gray_1] charcoal\n %c[d_green] &#8226; %c[ui_gray_2] usable for cooking meats of lesser mutants\n
+		</text>
+	</string>
+	
+	<string id="st_army_bowler">
+		<text>Hervidor del ej&#233;rcito</text>
+	</string>
+	<string id="st_army_bowler_descr">
+		<text>This army kettle features a convex-concave bottom profile, concave on one side. It is supplied with a wire handle-loop for hanging and carrying. When worn on the waist belt, the concave side should be placed to the body. La tapa del hervidor puede usarse como una sart&#233;n cuando se calienta o se prepara un segundo plato. The handle of the lid is designed to hold it, securely closing the lid when carrying, and a tablespoon is inserted into the special holes on the handle.\n \n %c[ui_gray_3]NOTES:\n \n %c[ui_gray_1]Since fuels used in the multi-fuel stove are much more efficient energy-carriers than the wood or coal, the multi-fuel stove is - in the long run - significantly more cost-effective than traditional wood or coal stoves. On the other hand, these fuels are usually carried in heavy metal containers, which makes them more suited for use at bases, rather than in field operations.\n \n %c[ui_gray_1]Mutant meats that do not require high temperature to be prepared are referred to as 'low-tier', whereas those that require high temperature - 'high-tier'.\n \n %c[ui_gray_3]PROPERTIES:\n %c[d_blue] &#8226; %c[ui_gray_2] technological item\n %c[d_blue] &#8226; %c[ui_gray_2] high quality\n %c[d_green] &#8226; %c[ui_gray_2] medium-tier field cooking equipment\n %c[d_green] &#8226; %c[ui_gray_2] fuel: %c[ui_gray_1] charcoal\n %c[d_green] &#8226; %c[ui_gray_2] usable on %c[ui_gray_1]campfires%c[ui_gray_2] %c[d_green] &#8226; %c[ui_gray_2] usable for cooking meats of lesser mutants\n</text>
+	</string>
+	
+	<string id="st_fieldcooker">
+		<text>Estufa multi-combustible</text>
+	</string>
+	<string id="st_fieldcooker_descr">
+		<text>Este horno ha sido probado sobradamente durante muchos a&#241;os y se ha utilizado en innumerables expediciones. Es extremadamente robusto, fiable y potente y fue dise&#241;ado para manejar situaciones exigentes, altitudes extrem&#225;s y temperaturas bajas y altas. Tiene un rendimiento muy elevado y se puede utilizar con casi cualquier tipo de combustible, incluidos butano, gasolina/gasolina, diesel, queroseno/parafina e incluso combustible de aviones. Using the separate control knob, you can adjust the flame to the heat you want, even if you are wearing gloves.\n \n %c[ui_gray_3]NOTES:\n \n %c[ui_gray_1]Since fuels used in the multi-fuel stove are much more efficient energy-carriers than the wood or coal, the multi-fuel stove is - in the long run - significantly more cost-effective than traditional wood or coal stoves. On the other hand, these fuels are usually carried in heavy metal containers, which makes them more suited for use at bases, rather than in field operations.\n \n %c[ui_gray_1]Mutant meats that do not require high temperature to be prepared are referred to as 'low-tier', whereas those that require high temperature - 'high-tier'.\n \n %c[ui_gray_3]PROPERTIES:\n %c[d_blue] &#8226; %c[ui_gray_2] technological item\n %c[d_blue] &#8226; %c[ui_gray_2] high quality\n %c[d_green] &#8226; %c[ui_gray_2] high-tier cooking equipment\n %c[d_green] &#8226; %c[ui_gray_2] fuel: %c[ui_gray_1] gasoline, natural gas, kerosene\n %c[d_green] &#8226; %c[ui_gray_2] usable for cooking meats of all mutants\n</text>
+	</string>
+	
+	<string id="st_box_matches">
+		<text>Matchbox</text>
+	</string>
+	<string id="st_box_matches_descr">
+		<text>A box of matches is the second most important item in the Zone after a weapon. With the help of matches, a fire can be created, a light can be passed to a friend, and small spaces can be illuminated. This particular box was produced in an unknown underground factory in the roundabouts of the Zone, therefore high quality is not to be expected, though the price is not high, either. The box has been permanently crumpled, crumbling sulphur and broken wet matches. Only a quarter of its contents remains usable. Even so, lighting a fire or a cigarette is very difficult if using the matchbox - thus, stalkers tend to purchase a more expensive but practical lighter.\n \n %c[ui_gray_3]PROPERTIES:\n %c[d_blue] &#8226; %c[ui_gray_2] everyday item\n %c[d_orange] &#8226; %c[ui_gray_2] usable for: %c[ui_gray_1] starting a fire, lighting a cigarette\n</text>
+	</string>
+	
+	<string id="st_kerosene">
+		<text>Queroseno</text>
+	</string>
+	<string id="st_kerosene_descr">
+		<text>El queroseno se usa ampliamente, por ejemplo en la aviaci&#243;n como combustible para cohetes, y como combustible en productos de vidrio, iluminaci&#243;n dom&#233;stica y dispositivos de calefacci&#243;n. Being an excellent solvent, it easily reaches internal mechanisms and is therefore widely used in the cleaning and repair of various components.\n \n %c[ui_gray_3]PROPERTIES:\n %c[d_blue] &#8226; %c[ui_gray_2] technological item\n %c[d_green] &#8226; %c[ui_gray_2] hi-tier cooking fuel\n
+		</text>
+	</string>
+	
+	<string id="st_charcoal">
+		<text>Carb&#243;n</text>
+	</string>
+	<string id="st_charcoal_descr">
+		<text>Charcoal from hardwood timber for cooking meat, fish, vegetables in the brazier and barbecue.\n \n %c[ui_gray_3]PROPERTIES:\n %c[d_blue] &#8226; %c[ui_gray_2] technological item\n %c[d_green] &#8226; %c[ui_gray_2] low-tier cooking fuel\n</text>
+	</string>
+
+	<string id="st_fuel_tier_1">
+		<text>All flammables</text>
+	</string>
+	<string id="st_fuel_tier_1_desc">
+		<text>
+		%c[d_blue] &#8226; %c[ui_gray_2] Campfire\n %c[d_blue] &#8226; %c[ui_gray_2] Charcoal\n %c[d_blue] &#8226; %c[ui_gray_2] Kerosene\n %c[d_blue] &#8226; %c[ui_gray_2] Jerrycan\n %c[d_blue] &#8226; %c[ui_gray_2] Gas balloon\n
+		</text>
+	</string>
+	
+	<string id="st_fuel_tier_2">
+		<text>Liquid fuel only</text>
+	</string>
+	<string id="st_fuel_tier_2_desc">
+		<text>
+		%c[d_blue] &#8226; %c[ui_gray_2] Kerosene\n %c[d_blue] &#8226; %c[ui_gray_2] Jerrycan\n %c[d_blue] &#8226; %c[ui_gray_2] Gas balloon\n
+		</text>
+	</string>
+
+</string_table> 

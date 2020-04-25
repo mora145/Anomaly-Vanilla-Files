@@ -1,0 +1,711 @@
+<?xml version="1.0" encoding="windows-1251"?>
+
+<!--===========================================================
+<
+< TEXT  STRINGS FOR TASKS ON PRIPYAT MAP
+<	CoC 1.4.08 - DoctorX Questlines 1.6
+<
+<	Modified by: DoctorX
+<	Last revised: October 07, 2016
+<
+<===========================================================-->
+
+<string_table>
+
+
+	<!-- /////////////////////////////////////////////////////////////////////////////////////////////
+	<!--
+	<!-- STORYLINE TASK TEXT  STRINGS
+	<!--
+	<!--	Modified by DoctorX
+	<!--	for DoctorX Questlines 1.6
+	<!--	October 07, 2016
+	<!--
+	<!-- ----------------------------------------------------------------------------------------- -->
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Rabbit (Monolith Trader) Default Storyline Task -->
+
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_default_task_name">
+		<text>Obtener la siguiente tarea</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_default_task_text">
+		<text>Recibe tu pr&#243;xima tarea.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_default_task_about">
+		<text>Debes encontrarte con uno de los ancianos de Monolito. Ve con &#233;l ahora.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_default_task_finish">
+		<text>Buena suerte.</text>
+	</string>
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Rabbit (Monolith Trader) Destroy the Non-Believers Storyline Task -->
+
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_1_name">
+		<text>Destruye a los no creyentes</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_1_text">
+		<text>Dirige el ataque Monolito contra los infieles.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_1_about">
+		<text>Ha llegado el momento, mi hijo. Debes conducir a tus hermanos a la batalla. Lucha ferozmente y no aceptes ninguna rendici&#243;n. Derrota a los infieles por el bien del monolito.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_1_finish">
+		<text>Excelente trabajo. Eres un buen guerrero.</text>
+	</string>
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Rabbit (Monolith Trader) Collect Supplies Storyline Task -->
+
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_2_name">
+		<text>Recoge %s para Monolito</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_2_text">
+		<text>Rabbit me ha pedido que le traiga %s.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_2_about">
+		<text>Hijo m&#237;o, tus hermanos necesitan que recolectes provisiones.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_2_fetch_about">
+		<text>Tr&#225;enos %s.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_2_fetch_finish">
+		<text>Lo has hecho bien.</text>
+	</string>
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Rabbit (Monolith Trader) Venture into the Zone Storyline Task -->
+
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_3_name">
+		<text>Avent&#250;rate en la Zona</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_3_text">
+		<text>Debes demostrar tu val&#237;a al sobrevivir a un viaje a la Zona.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_3_about">
+		<text>Hijo m&#237;o, debes demostrar tu val&#237;a al todopoderoso Monolito. Debes viajar solo en las profundidades de la Zona. Enfrenta todos los desaf&#237;os que te confrontan. Destruye a todos los enemigos que encuentres. Haz esto por el bien del Monolito.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_task_3_finish">
+		<text>Lo has hecho bien, hijo m&#237;o.</text>
+	</string>
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Cleric (Monolith Mechanic) Default Storyline Task -->
+
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_default_task_name">
+		<text>Obtener la siguiente tarea</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_default_task_text">
+		<text>Recibe tu pr&#243;xima tarea.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_default_task_about">
+		<text>Hijo m&#237;o, sirves bien al Monolito. Habla con uno de los ancianos y preg&#250;ntale qu&#233; puedes hacer para ayudar a nuestra gran causa.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_default_task_finish">
+		<text>Buena suerte.</text>
+	</string>
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Cleric (Monolith Mechanic) Recover Stolen Equipment Storyline Task -->
+
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_1_name">
+		<text>Recuperar equipo de monolito robado</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_1_text">
+		<text>Un stalker ha saboteado el Quemador Cerebral. Recuperar el equipo que elimin&#243;</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_1_about">
+		<text>Un stalker ha robado una pieza vital del equipo del Quemador Cerebral. Debes recuperarlo por el bien del Todopoderoso Monolito.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_1_finish">
+		<text>Lo has hecho bien.</text>
+	</string>
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Cleric (Monolith Mechanic) Hunt for Food Storyline Task -->
+
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_2_name">
+		<text>Cazar por comida</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_2_text">
+		<text>Dirige una cacer&#237;a en la Zona para cosechar carne para tus hermanos Monolito.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_2_about">
+		<text>Hijo m&#237;o, debemos reponer nuestras tiendas de alimentos. &#191;Dirigir&#225;s una cacer&#237;a para que tus hermanos puedan festejar?</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_2_finish">
+		<text>Todos ustedes han servido bien al Monolito. La carne que has tra&#237;do se servir&#225; en la fiesta de esta noche. Como recompensa, reservaremos los globos oculares para usted.</text>
+	</string>
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Cleric (Monolith Mechanic) Monolith Weapon Arsenal Storyline Task -->
+
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_3_name">
+		<text>Monolito %s Arsenal</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_3_text">
+		<text>Cleric quiere %s para expandir el poderoso arsenal de Monolito.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_3_about">
+		<text>Hijo m&#237;o, debemos construir nuestro poderoso arsenal para que podamos alcanzar nuestros gloriosos objetivos.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_3_fetch_about">
+		<text> Debes traerme %s. Su &#233;xito servir&#225; mucho a la causa Monolito.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_mechanic_stalker_task_3_fetch_finish">
+		<text>Lo has hecho bien, hijo m&#237;o.</text>
+	</string>
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Olivar (Monolith Trader) Default Storyline Task -->
+
+	<string id="drx_sl_trader_monolith_kbo_default_task_name">
+		<text>Obtener la siguiente tarea</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_default_task_text">
+		<text>Recibe tu pr&#243;xima tarea.</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_default_task_about">
+		<text>You must meet with one of the Monolith leaders. Ve con &#233;l ahora.</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_default_task_finish">
+		<text>Buena suerte.</text>
+	</string>
+	
+
+	<!-- Olivar (Monolith Trader) Eliminate the Intruders Storyline Task -->
+
+	<string id="drx_sl_trader_monolith_kbo_task_1_name">
+		<text>Eliminate the Intruders</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_1_text">
+		<text>Olivar informed you about a group of intruders. They must be eliminated at any cost.</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_1_about">
+		<text>A group of intruders have been spotted in the area. We can't let them survive. Eliminate them.</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_1_finish">
+		<text>Bien hecho. You proved yourself.</text>
+	</string>
+	
+
+	<!-- Olivar (Monolith Trader) Investigate the Scouts' Location Storyline Task -->
+
+	<string id="drx_sl_trader_monolith_kbo_task_2_name">
+		<text>Investigate the Scouts' Location</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_2_text">
+		<text>Olivar tasked you to find the missing scouts</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_2_text_0">
+		<text>Olivar tasked you to find the missing scouts, but $item_1 is required to search.</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_2_text_1">
+		<text>Olivar tasked you to find the missing scouts.\nHead over $map.</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_2_text_2">
+		<text>Olivar tasked you to find the missing scouts.\nUse the $item_1 and set up the frequency to $freq MHz. Search for a good signal around.</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_2_text_3">
+		<text>You must retrieve the $item_2 you found and show it to Olivar.</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_2_text_4">
+		<text>Go back to Olivar with your findings.</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_2_about">
+		<text>I have an important mission for you, brother. We have sent a squad of our scouts to observe unusual activities in the area. A day has passed and they are nowhere to be found. Their failure has brought shame on us all! It is up to us to see if they can still be redeemed. Here, this is the PDA signal frequency for one of the scouts. Trace it and discover what happened to them.</text>
+	</string>
+	<string id="drx_sl_trader_monolith_kbo_task_2_finish">
+		<text>This information will be useful. Thank you, brother.</text>
+	</string>
+
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Griffith (Mercenary Operator) Default Storyline Task -->
+
+	<string id="drx_sl_merc_pri_grifon_mlr_default_task_name">
+		<text>Obtener la siguiente tarea</text>
+	</string>
+	<string id="drx_sl_merc_pri_grifon_mlr_default_task_text">
+		<text>Recibe tu pr&#243;xima tarea.</text>
+	</string>
+	<string id="drx_sl_merc_pri_grifon_mlr_default_task_about">
+		<text>Hay un contacto que est&#225; dispuesto a pagar bien por nuestros servicios. Ve a verlo</text>
+	</string>
+	<string id="drx_sl_merc_pri_grifon_mlr_default_task_finish">
+		<text>Buena suerte.</text>
+	</string>
+	
+
+	<!-- Griffith (Mercenary Operator) Hunt Down the Dangerous Mutant Storyline Task -->
+
+	<string id="drx_sl_merc_pri_grifon_mlr_task_1_name">
+		<text>Hunt Down the Dangerous Mutant</text>
+	</string>
+	<string id="drx_sl_merc_pri_grifon_mlr_task_1_text">
+		<text>Griffith and his group of mercs are tired of the mutant who keep attacking them at night. You must kill it.</text>
+	</string>
+	<string id="drx_sl_merc_pri_grifon_mlr_task_1_about">
+		<text>This fucking monster comes back every night to attack our guards. We can't let it slip out any longer. Find it, kill it.</text>
+	</string>
+	<string id="drx_sl_merc_pri_grifon_mlr_task_1_finish">
+		<text>Finally! we can rest in peace. Here's your reward.</text>
+	</string>
+	
+
+	<!-- Griffith (Mercenary Operator) Search Lab X-8 Location Storyline Task -->
+
+	<string id="drx_sl_merc_pri_grifon_mlr_task_2_name">
+		<text>Buscar Lab X-8</text>
+	</string>
+	<string id="drx_sl_merc_pri_grifon_mlr_task_2_text">
+		<text>Griffith won't get back to Dushman empty handed. Search Lab X-8 for any documents you can find.</text>
+	</string>
+	<string id="drx_sl_merc_pri_grifon_mlr_task_2_about">
+		<text>We came here to retrieve info from Lab X8, which is located near the Yubileiny service center north of here. We'd have something useful to leave with, at least. I'd head over there again with the guys, but there aren't many of us left and it'd be too much to handle, since we'd rather not spend any more manpower than we need to trying to somehow get away from the center of the fucking Zone. Head down to X8 - there could be something left</text>
+	</string>
+	<string id="drx_sl_merc_pri_grifon_mlr_task_2_finish">
+		<text>Very interesting... these documents could be very valuable to the right people. You did a great job.</text>
+	</string>
+	
+	<!-- \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ -->
+
+
+	<!-- /////////////////////////////////////////////////////////////////////////////////////////////
+	<!--
+	<!-- CHANGE FACTIONS TASK TEXT  STRINGS
+	<!--
+	<!--	Modified by DoctorX
+	<!--	for DoctorX Questlines 1.6
+	<!--	October 07, 2016
+	<!--
+	<!-- ----------------------------------------------------------------------------------------- -->
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Rabbit (Monolith Trader) Payoff Change Factions Task -->
+
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_cf_task_1_name">
+		<text>Renunciar al pago para unirse a Monolito</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_cf_task_1_text">
+		<text>Te convertir&#225;s en Monolito, no tendr&#225;s m&#225;s necesidad de dinero. Dale a Rabbit 1,000 RU para que te unas al Todopoderoso Monolito.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_cf_task_1_about">
+		<text>It's good you have come to your senses, my child. Le daremos la bienvenida al orden del Monolito, pero primero debe renunciar a todas sus posesiones mundanas en forma de 1.000 RU.</text>
+	</string>
+	<string id="drx_sl_pri_monolith_monolith_trader_stalker_cf_task_1_finish">
+		<text>&#161;Bueno! Bienvenido a la hermandad del Monolito.</text>
+	</string>
+
+	<!-- \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ -->
+
+
+	<!-- /////////////////////////////////////////////////////////////////////////////////////////////
+	<!--
+	<!-- DYNAMIC TASK TEXT  STRINGS
+	<!--
+	<!--	Modified by DoctorX
+	<!--	for DoctorX Questlines 1.6
+	<!--	October 07, 2016
+	<!--
+	<!-- ----------------------------------------------------------------------------------------- -->
+	
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Eidolon (Elite Monolith Soldier) Purge the Infidels Task -->
+	<string id="monolith_eidolon_task_1_name">
+		<text>Purge the Infidels</text>
+	</string>
+	<string id="monolith_eidolon_task_1_text">
+		<text>Eidolon wants to collect some %s.</text>
+	</string>
+	<string id="monolith_eidolon_task_1_about">
+		<text>We are besieged. Infidels wish to exploit the almighty Monolith. Driven by avarice. Ignorance. Base desires. On behalf of the Monolith. We act, the guardians. Purge the infidels. Collect their badges. As a trophy. A sign of our unquestionable, superiority. Go, brother. Destroy them all.</text>
+	</string>
+	<string id="monolith_eidolon_task_1_fetch_about">
+		<text>We are besieged. Infidels wish to exploit the almighty Monolith. Driven by avarice. Ignorance. Base desires. On behalf of the Monolith. We act, the guardians. Purge the infidels. Collect their badges. As a trophy. A sign of our unquestionable, superiority. Go, brother. Destroy them all. Acquire %s on your mission.</text>
+	</string>
+	<string id="monolith_eidolon_task_1_fetch_finish">
+		<text>Such devotion. To our glorious cause. Devotion shall be rewarded.</text>
+	</string>
+	
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Eidolon (Elite Monolith Soldier) Hunt the Mutants Task -->
+	
+	<string id="monolith_eidolon_task_2_name">
+		<text>The Greatest Warrior</text>
+	</string>	
+	<string id="monolith_eidolon_task_2_text">
+		<text>Collect %s trophies for Eidolon.</text>
+	</string>		
+	<string id="monolith_eidolon_task_2_about">
+		<text>Dangerous. Lethal beasts. A gift of the Zone, for us to behold. For us to take. Guardians, providers, as well as a milestone. A way to test our strength. Resolve, and combat prowess. Go, brother. Hunt a mighty hunter, man versus beast.</text>
+	</string>		
+	<string id="monolith_eidolon_task_2_fetch_about">
+		<text>Dangerous. Lethal beasts. A gift of the Zone, for us to behold. For us to take. Guardians, providers, as well as a milestone. A way to test our strength. Resolve, and combat prowess. Go, brother. Hunt a mighty hunter, man versus beast. Collect %s to prove your worth.</text>
+	</string>	
+	<string id="monolith_eidolon_task_2_fetch_finish">
+		<text>Magnificent trophy. The Monolith is proud. So am I. A reward, for you.</text>
+	</string>
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Eidolon (Elite Monolith Soldier) Harvest the Fruit Task -->
+
+	<string id="monolith_eidolon_task_3_name">
+		<text>Harvest the Fruit</text>
+	</string>
+	<string id="monolith_eidolon_task_3_text">
+		<text>Eidolon wants to collect a "%s" artefact.</text>
+	</string>
+	<string id="monolith_eidolon_task_3_about">
+		<text>We protect the Monolith. The Monolith protects us. We serve, and the Zone delivers. Splendid fruit, resplendent with its unequalled brilliance. Powerful, to empower us. Go now, harvest the fruit, brother.</text>
+	</string>
+	<string id="monolith_eidolon_task_3_fetch_about">
+		<text>We protect the Monolith. The Monolith protects us. We serve, and the Zone delivers. Splendid fruit, resplendent with its unequalled brilliance. Powerful, to empower us. Go now, harvest the fruit, brother. Harvest a "%s" artefact, to bolster our strength.</text>
+	</string>
+	<string id="monolith_eidolon_task_3_fetch_finish">
+		<text>Excelente. Marvellous. A sight to behold. You have got my gratitude, loyal brother.</text>
+	</string>
+	
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Eidolon (Elite Monolith Soldier) Keeper of Secrets Task -->
+	<string id="monolith_eidolon_task_4_name">
+		<text>Keeper of Secrets</text>
+	</string>
+	<string id="monolith_eidolon_task_4_text">
+		<text>Recover documents which contain secrets of the Zone and bring them back to Eidolon.</text>
+	</string>
+	<string id="monolith_eidolon_task_4_about">
+		<text>There exist, documents. Which speak of the wonders of the Zone. In detail. Secret knowledge. Infidels must not know. Recover the documents. Bring them to me, and I shall reward you.</text>
+	</string>
+	<string id="monolith_eidolon_task_4_finish">
+		<text>The Zone is safe. Owing to you.</text>
+	</string>
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Rabbit (Monolith Trader) Assault Territory Task -->
+	<string id="pri_monolith_monolith_trader_stalker_task_1_name">
+		<text>Conquista al enemigo</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_1_text">
+		<text>Se te ha encomendado limpiar un &#225;rea por el bien del todopoderoso Monolito. Informe a Rabbit despu&#233;s de que el trabajo haya terminado.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_1_about">
+		<text>Tengo una misi&#243;n importante para ti. Debes viajar a la Zona y despejar el &#225;rea para que nuestras fuerzas puedan avanzar. &#191;Est&#225;s listo?</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_1_finish">
+		<text>La tarea est&#225; hecha? &#161;Bueno! Alabado Monolito.</text>
+	</string>
+
+
+
+	<!-- ASSASSINATION FOR MONOLITH TASK -->
+	<string id="pri_monolith_monolith_trader_stalker_task_2_name">
+		<text>Mata al planificador</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_2_text">
+		<text>Un stalker est&#225; tratando de desactivar el Quemador Cerebral. M&#225;talo.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_2_about">
+		<text>Hay muchas amenazas a las grandes obras de la Zona. Hay uno que una vez m&#225;s est&#225; planeando desactivar el Quemador Cerebral. &#201;l debe ser detenido. Debes encontrarlo y destruirlo.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_2_finish">
+		<text>Lo has hecho bien. El Colectivo est&#225; contento.</text>
+	</string>
+
+
+	<!-- FIND WEAPON FOR MONOLITH TASK -->
+	<string id="pri_monolith_monolith_trader_stalker_task_3_name">
+		<text>Obtener un %s para Conejo</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_3_text">
+		<text>Rabbit ha solicitado un nuevo rifle para agregar al arsenal Monolito.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_3_about">
+		<text>Nos volvemos m&#225;s poderosos todos los d&#237;as. Necesitamos m&#225;s armamento para continuar logrando nuestros objetivos. Debes encontrar una nueva arma para nosotros, as&#237; podemos continuar haciendo crecer nuestro arsenal.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_3_fetch_about">
+		<text>Encuentra un nuevo %s y tr&#225;emelo.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_3_fetch_finish">
+		<text>Esto har&#225; bien.</text>
+	</string>
+
+
+	<!-- FIND MUTANT MEAT FOR MONOLITH TASK -->
+	<string id="pri_monolith_monolith_trader_stalker_task_4_name">
+		<text>Hunt for %s for Rabbit</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_4_text">
+		<text>Caza y vestido de campo %s. Devuelve la carne a Rabbit para que pueda prepararla.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_4_about">
+		<text>Nuestras provisiones se agotan. Debes salir a la Zona y buscar carne para que tus hermanos monolitos puedan festejar.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_4_fetch_about">
+		<text>Busca y llevanos %s. Recuerda que estas criaturas son un regalo de la Zona. M&#225;talos r&#225;pidamente y da gracias. Devu&#233;lveme la carne cuando hayas tenido &#233;xito.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_4_fetch_finish">
+		<text>Has tenido &#233;xito en tu tarea. Bien hecho.</text>
+	</string>
+
+
+	<!-- FIND SUPPLIES FOR MONOLITH TASK -->
+	<string id="pri_monolith_monolith_trader_stalker_task_5_name">
+		<text>Recoge %s para Conejo</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_5_text">
+		<text>Adquirir %s y devolverlos a Rabbit.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_5_about">
+		<text>Debe procurarnos m&#225;s suministros para que podamos continuar nuestros grandes trabajos.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_5_fetch_about">
+		<text>Recupera %s y tr&#225;emelos.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_5_fetch_finish">
+		<text>Has hecho bien en servir a Monolito.</text>
+	</string>
+
+
+	<!-- FIND ARTEFACT FOR MONOLITH TASK -->
+	<string id="pri_monolith_monolith_trader_stalker_task_6_name">
+		<text>Find the "%s" Artefact for Rabbit</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_6_text">
+		<text>Find the "%s" artefact. Bring it back to Rabbit so he may prepare it as an offering.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_6_about">
+		<text>We must find another artefact to give as an offering. Will you help serve the good of the Monolith?</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_6_fetch_about">
+		<text>Find a "%s" artefact. Bring it to me when you have succeeded so we may conduct the ceremony.</text>
+	</string>
+	<string id="pri_monolith_monolith_trader_stalker_task_6_fetch_finish">
+		<text>Sirves bien al Monolito. &#218;nete a nosotros esta noche en la ofrenda ceremonial. Habr&#225; canto.</text>
+	</string>
+
+	<!-- \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ -->
+
+
+	<!-- /////////////////////////////////////////////////////////////////////////////////////////////
+	<!--
+	<!-- MECHANIC TASK TEXT  STRINGS
+	<!--
+	<!--	Modified by DoctorX
+	<!--	for DoctorX Questlines 1.6
+	<!--	October 07, 2016
+	<!--
+	<!-- ----------------------------------------------------------------------------------------- -->
+
+	<!-- ----------------------------------------------------------------------------------------- -->
+	<!-- Cleric (Monolith Mechanic) Find Level 1 Toolkit Task -->
+
+	<string id="pri_monolith_monolith_mechanic_stalker_task_1_name">
+		<text>Encontrar %s para Cl&#233;rigo</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_1_text">
+		<text>Cleric requiere que %s instale actualizaciones de equipos b&#225;sicos, debe devolverlos a &#233;l si encuentra alguno.</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_1_about">
+		<text>Necesito que hagas algo por m&#237;. Necesito herramientas espec&#237;ficas para ajustar nuestras armas.</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_1_fetch_about">
+		<text>De acuerdo, necesito un %s. Ve ahora.</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_1_fetch_finish">
+		<text>You've done well.</text>
+	</string>
+
+	<string id="pri_monolith_monolith_mechanic_stalker_task_2_name">
+		<text>Encontrar %s para Cl&#233;rigo</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_2_text">
+		<text>Cleric requiere que %s instale actualizaciones avanzadas de equipos, debe devolverlos a &#233;l si encuentra alguno.</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_2_about">
+		<text>Necesito algunas herramientas m&#225;s; mejores herramientas. &#191;Puedes encontrar lo que pido, otra vez?</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_2_fetch_about">
+		<text>Necesito un conjunto de herramientas avanzadas. Debe contener lo que necesito. Si puede traer algo para m&#237;, le estar&#233; agradecido, incluso le ofrecer&#233; un descuento de aqu&#237; en adelante.</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_2_fetch_finish">
+		<text>&#161;Bueno! You've brought them to me.</text>
+	</string>
+
+	<string id="pri_monolith_monolith_mechanic_stalker_task_3_name">
+		<text>Encontrar %s para Cl&#233;rigo</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_3_text">
+		<text>Cleric requiere que %s instale actualizaciones de equipos expertos, debe devolverlos a &#233;l si encuentra alguno.</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_3_about">
+		<text>Necesito algunas herramientas m&#225;s; mejores herramientas. &#191;Puedes encontrar lo que pido, otra vez?</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_3_fetch_about">
+		<text>Debe contener lo que necesito. Debe contener lo que necesito. Si puede traer algo para m&#237;, le estar&#233; agradecido, incluso le ofrecer&#233; un descuento de aqu&#237; en adelante.</text>
+	</string>
+	<string id="pri_monolith_monolith_mechanic_stalker_task_3_fetch_finish">
+		<text>&#161;Bueno! You've brought them to me.</text>
+	</string>
+	
+	
+	<string id="lider_monolith_haron_task_1_name">
+		<text>Destroy the enemy</text>
+	</string>
+	<string id="lider_monolith_haron_task_1_text">
+		<text>Charon has asked me to liberate a key position in the Zone.</text>
+	</string>
+	<string id="lider_monolith_haron_task_1_about">
+		<text>My brother, your help is needed in the destruction of the infidels.</text>
+	</string>
+	<string id="lider_monolith_haron_task_1_finish">
+		<text>Blessings of the Monolith upon you, brother! Take what you deserve.</text>
+	</string>
+
+	<string id="lider_monolith_haron_task_2_name">
+		<text>Consigue %s</text>
+	</string>
+	<string id="lider_monolith_haron_task_2_text">
+		<text>Charon asked me to bring %s.</text>
+	</string>
+	<string id="lider_monolith_haron_task_2_about">
+		<text>The great Monolith will offer rewards to any brothers helping to purify our holy land from the infidels. Show me the insignias of these worms as proof of your actions.</text>
+	</string>
+	<string id="lider_monolith_haron_task_2_fetch_about">
+		<text>The great Monolith will offer rewards to any brothers helping to purify our holy land from the infidels. Bring me %s as proof of your actions.</text>
+	</string>
+	<string id="lider_monolith_haron_task_2_fetch_finish">
+		<text>Outstanding, brother. This is for you, from the Monolith.</text>
+	</string>
+	
+<!-- Griffith -->
+	<string id="merc_pri_grifon_mlr_task_1_name">
+		<text>Consigue %s</text>
+	</string>
+	<string id="merc_pri_grifon_mlr_task_1_text">
+		<text>Griffin has asked to collect %s.</text>
+	</string>
+	<string id="merc_pri_grifon_mlr_task_1_about">
+		<text>There are just too many of those goddamn fanatics. Could you wipe them out? I've got a little something that could help you out in future hunts. It's yours if you bring me twenty of their patches.</text>
+	</string>
+	<string id="merc_pri_grifon_mlr_task_1_fetch_about">
+		<text>There are just too many of those goddamn fanatics. Could you wipe them out? I've got a little something that could help you out in future hunts. It's yours if you bring me twenty of their patches.</text>
+	</string>
+	<string id="merc_pri_grifon_mlr_task_1_fetch_finish">
+		<text>Thanks, stalker. Here's that little toy I promised you.</text>
+	</string>
+	
+	<string id="merc_pri_grifon_mlr_task_2_name">
+		<text>Find a Soul artefact</text>
+	</string>
+	<string id="merc_pri_grifon_mlr_task_2_text">
+		<text>Griffin has asked me to locate and return a Soul artefact.</text>
+	</string>
+	<string id="merc_pri_grifon_mlr_task_2_fetch_about">
+		<text>There's no doctor here, and we've got to survive somehow. Ordinary medical equipment just isn't enough for us, and not many of the men know how to use it properly. It's hard enough taking care of everyone around here. So, I want to ask for your help. I've heard about an artefact called the Soul, said to have an ability to heal the wounds of people. Could you find one and bring it here for us?</text>
+	</string>
+	<string id="merc_pri_grifon_mlr_task_2_fetch_finish">
+		<text>You actually found one? I can't believe it... Thank you, stalker! This will help the others. And don't go without your reward.</text>
+	</string>
+
+	<string id="merc_pri_grifon_mlr_task_3_name">
+		<text>Clean out the grocery store</text>
+	</string>
+	<string id="merc_pri_grifon_mlr_task_3_text">
+		<text>The mercenaries want the dogs at the nearest grocery store taken care of.</text>
+	</string>
+	<string id="merc_pri_grifon_mlr_task_3_about">
+		<text>Hola. We've got another problem - there are dogs who have settled down at the grocery store, and that's no good for us. They've been barking at us nonstop, and that draws unwanted attention. I'd appreciate it if you could clear them out from that place.</text>
+	</string>
+	<string id="merc_pri_grifon_mlr_task_3_finish">
+		<text>Thank you, great work. Here's some money for your trouble.</text>
+	</string>
+	
+	
+<!-- (Mercenary Mechanic) -->
+	<string id="merc_pri_a18_mech_mlr_task_1_name">
+		<text>Encuentra %s</text>
+	</string>
+	<string id="merc_pri_a18_mech_mlr_task_1_text">
+		<text>A mercenary technician in the Outskirts has asked me to find %s.</text>
+	</string>
+	<string id="merc_pri_a18_mech_mlr_task_1_about">
+		<text>We've been sitting on our asses here in Pripyat for such a long time... Surely, you've heard our story from Griffin. I've searched high and low for tools, but I've only managed to find low tier ones that aren't suitable for extensive maintenance and customization. This is outrageous. I'm a technician, and I need proper tools to work optimally. Can you help me out?</text>
+	</string>
+	<string id="merc_pri_a18_mech_mlr_task_1_fetch_about">
+		<text>We've been sitting on our asses here in Pripyat for such a long time... Surely, you've heard our story from Griffin. I've searched high and low for tools, but I've only managed to find low tier ones that aren't suitable for extensive maintenance and customization. This is outrageous. I'm a technician, and I need proper tools to work optimally. Can you help me out?</text>
+	</string>
+	<string id="merc_pri_a18_mech_mlr_task_1_fetch_finish">
+		<text>Thank you - won't be as stressful for the guys here anymore. I'll give you a discount.</text>
+	</string>
+
+	<string id="merc_pri_a18_mech_mlr_task_2_name">
+		<text>Encuentra %s</text>
+	</string>
+	<string id="merc_pri_a18_mech_mlr_task_2_text">
+		<text>A mercenary technician in the Outskirts has asked me to find %s.</text>
+	</string>
+	<string id="merc_pri_a18_mech_mlr_task_2_about">
+		<text>Well, we've sorted out a few issues, but there's still a lot left to do. Need better tools for even more upgrades. Mind helping out again?</text>
+	</string>
+	<string id="merc_pri_a18_mech_mlr_task_2_fetch_about">
+		<text>Well, we've sorted out a few issues, but there's still a lot left to do. Need better tools for even more upgrades. Mind helping out again?</text>
+	</string>
+	<string id="merc_pri_a18_mech_mlr_task_2_fetch_finish">
+		<text>Bien hecho. Now I have a full set, and you can have all the discounts you're entitled to.</text>
+	</string>
+	
+	
+<!-- (Monolith Mechanic) -->
+	<string id="mechanic_monolith_kbo_task_1_name">
+		<text>Encuentra %s</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_1_text">
+		<text>The technician in the Yubileiny service center has asked me to bring him %s.</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_1_about">
+		<text>I need your help, brother. I require tools for our equipment so that our brethren may spread the word of the Monolith more effectively.</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_1_fetch_about">
+		<text>I need your help, brother. I require tools for our equipment so that our brethren may spread the word of the Monolith more effectively.</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_1_fetch_finish">
+		<text>Excellent work, brother. Everything we gain from future improvements will go to our charity, and your contribution will grant you a small discount.</text>
+	</string>
+
+	<string id="mechanic_monolith_kbo_task_2_name">
+		<text>Encuentra %s</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_2_text">
+		<text>The technician in the Yubileiny service center has asked me to bring him %s.</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_2_about">
+		<text>The set of tools you located previously does not suffice. Finer tools are required for more extensive work so that our brethren may continue spreading Its will. Will you serve our cause once again?</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_2_fetch_about">
+		<text>The set of tools you located previously does not suffice. Finer tools are required for more extensive work so that our brethren may continue spreading Its will. Will you serve our cause once again?</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_2_fetch_finish">
+		<text>Excellent work, brother. Everything we gain from future improvements will go to our charity, and your contribution will grant you an additional discount.</text>
+	</string>
+
+	<string id="mechanic_monolith_kbo_task_3_name">
+		<text>Encuentra %s</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_3_text">
+		<text>The technician in the Yubileiny service center asked me to bring him %s.</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_3_about">
+		<text>The last set of tools that you brought here was... adequate, but why stop at what has been achieved when we can attain something even better? What we need are the best tools in the Zone. I ask of you to serve Its will one last time, my brother.</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_3_fetch_about">
+		<text>The last set of tools that you brought here was... adequate, but why stop at what has been achieved when we can attain something even better? What we need are the best tools in the Zone. I ask of you to serve Its will one last time, my brother.</text>
+	</string>
+	<string id="mechanic_monolith_kbo_task_3_fetch_finish">
+		<text>Outstanding work, brother. Rest assured, I will mention your contribution to our brothers... and I promise to provide any assistance within my ability.</text>
+	</string>
+	
+	
+
+</string_table> 

@@ -1,0 +1,36 @@
+-- Lanforce
+-- full online objects caching, by setting alife to a max value then restore it to general 250 m
+-- this will force all objects inside the level to go online, where their resources get cached
+
+--[[
+first_update_time = nil
+switched = false
+
+function on_game_start()
+	RegisterScriptCallback("on_game_load",on_game_load)
+	RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
+	RegisterScriptCallback("actor_on_update",actor_on_update)
+	RegisterScriptCallback("actor_on_sleep",actor_on_sleep)
+end 
+
+function on_game_load()
+	alife():set_switch_distance(1000)
+end
+
+function actor_on_first_update()
+	first_update_time = time_global()
+end
+
+function actor_on_update()
+	if (not switched) and (first_update_time) and (time_global() > first_update_time + 5000) then
+		alife():set_switch_distance(250)
+		switched = true
+	end
+end
+
+function actor_on_sleep()
+	alife():set_switch_distance(1000)
+	first_update_time = time_global()
+	switched = false
+end
+-]]

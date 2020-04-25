@@ -1,0 +1,1156 @@
+
+--[[
+Script by Tronex
+Engine edits by Rezy
+2019/6/1
+Weather editor
+
+Weather editor allows you to change weather values in real-time.
+The GUI is interactive and easy to use, with ability to modify or create new weather files.
+Edited values are temporarly cached for the weathers and hours you touched. You can return to them in case you turned off the editor (Avoid exiting or reloading when you have unsaved values).
+ Keybinds:
+• Up Arrow: 		select previous parameter.
+• Down Arrow: 		select next parameter.
+• Left Arrow: 		reduce\rotate value of selected parameter.
+• Right Arrow: 		increase\rotate value of selected parameter.
+• LShift (hold): 	x10 value step.
+• LAlt (hold): 		x50 value step.
+• Minus (-): 		select previous hour.
+• Plus/Equals (+): 	select next hour.
+• C: 				copy current hour settings.
+• V: 				paste/apply current hour settings.
+• Delete: 			clean temp cache.
+• H: 				toggle hint window.
+• Esc or Home: 		turn off editor.
+--]]
+
+active = false -- for level.weathers, stop weather cycling when WE is active
+
+local enable_debug = false
+
+local precision = 6 -- allowed number of zeros
+local parameters = {
+-- Type: 0 = string | 1 = number | 2 = 3d vector | 3 = 4d vector | 
+	["ambient"]                          = { typ = 0, def = {""},      indx = 1  	                                 	  },
+	["ambient_color"]                    = { typ = 2, def = {0,0,0},   indx = 2 , 	min = 0,   max = 1,    step = 0.001   },
+	["clouds_color"]                     = { typ = 3, def = {0,0,0,0}, indx = 3 , 	min = 0,   max = 1,    step = 0.001   },
+	["clouds_texture"]                   = { typ = 0, def = {""},      indx = 4  	                                 	  },
+	["far_plane"]                        = { typ = 1, def = {0},       indx = 5 , 	min = 200, max = 1500, step = 1 	  },
+	["fog_color"]                        = { typ = 2, def = {0,0,0},   indx = 6 , 	min = 0,   max = 1,    step = 0.001   },
+	["fog_density"]                      = { typ = 1, def = {0},       indx = 7 , 	min = 0,   max = 1,    step = 0.01    },
+	["fog_distance"]                     = { typ = 1, def = {0},       indx = 8 , 	min = 0,   max = 1500, step = 1       },
+	["hemisphere_color"]                 = { typ = 3, def = {0,0,0,0}, indx = 9 , 	min = 0,   max = 1,    step = 0.001   },
+	["rain_density"]                     = { typ = 1, def = {0},       indx = 10, 	min = 0,   max = 1,    step = 0.01    },
+	["rain_color"]                       = { typ = 2, def = {0,0,0},   indx = 11, 	min = 0,   max = 1,    step = 0.001   },
+	["sky_color"]                        = { typ = 2, def = {0,0,0},   indx = 12, 	min = 0,   max = 1,    step = 0.001   },
+	["sky_rotation"]                     = { typ = 1, def = {0},       indx = 13, 	min = 0,   max = 360,  step = 0.005   },
+	["sky_texture"]                      = { typ = 0, def = {""},      indx = 14 	                                 	  },
+	["sun"]                              = { typ = 0, def = {""},      indx = 15 	                                 	  },
+	["sun_color"]                        = { typ = 2, def = {0,0,0},   indx = 16, 	min = 0,   max = 5,    step = 0.001   },
+--	["sun_longitude"]                    = { typ = 1, def = {0},       indx = 17, 	min = 0,   max = 360,  step = 1       },
+--	["sun_altitude"]                     = { typ = 1, def = {0},       indx = 18, 	min = 0,   max = 360,  step = 1       },
+	["sun_shafts_intensity"]             = { typ = 1, def = {0},       indx = 19, 	min = 0,   max = 1,    step = 0.01    },
+	["thunderbolt_collection"]           = { typ = 0, def = {""},      indx = 20 	                                 	  },
+	["thunderbolt_duration"]             = { typ = 1, def = {0},       indx = 21, 	min = 0,   max = 1,    step = 0.01    },
+	["thunderbolt_period"]               = { typ = 1, def = {0},       indx = 22, 	min = 0,   max = 1000, step = 1       },
+	["water_intensity"]                  = { typ = 1, def = {0},       indx = 23, 	min = 0,   max = 1,    step = 0.01    },
+	["wind_velocity"]                    = { typ = 1, def = {0},       indx = 24, 	min = 0,   max = 1000, step = 1       },
+	["tree_amplitude_intensity"]         = { typ = 1, def = {0},       indx = 25, 	min = 0,   max = 1,    step = 0.01    },
+	["wind_direction"]                   = { typ = 1, def = {0},       indx = 26, 	min = 0,   max = 360,  step = 1       },
+}
+
+local ui = nil
+local lerp = nil
+
+local is_wide = utils.is_widescreen()
+local _width = (device().width)-400
+local _hight = (device().height)
+local msg_width = is_wide and (_width*0.8) or _width
+
+-- general values cache
+local _memo = {} 	-- _memo[weather][hour] = {...}
+local _memo_i = {}  -- _memo[weather][hour] = {...}
+
+-- cache current values
+local _cache = {}
+local _cache_i = {}
+local _selected = 1
+local _selected_group = 1
+local _file
+local _hour
+
+local dir = "environment\\weathers\\"
+
+local key_timer = 0
+local jump_1 = 1
+local jump_2 = 10
+local jump_3 = 50
+local jump = jump_1
+
+local u_r = utils.round
+local u_c = utils.clamp
+
+function start(owner)
+	-- Hide the owner
+	if owner then
+		if (owner:IsShown()) then
+			print_dbg("~ hide owner: %s", owner.name or "?")
+			owner:HideDialog()
+			owner:Show(false)
+		end
+	else
+		local hud = get_hud()
+		if hud then
+			print_dbg("~ hide actor menu")
+			hud:HideActorMenu()
+		end
+	end
+	
+	if (not ui) then
+		ui = ui_weather_editor(owner)
+	end
+
+	if (ui) and (not ui:IsShown()) then
+		ui:ShowDialog(true)
+		ui:Reset(false)
+		
+		RegisterScriptCallback("on_key_release",on_key_release)
+		RegisterScriptCallback("on_key_hold",on_key_hold)
+		
+		_G.KEYS_UNLOCK					= false
+	end
+end
+
+function on_key_release(key)
+	jump = jump_1
+end
+
+function on_key_hold(key)
+	if ui then
+		if (key == DIK_keys["DIK_LSHIFT"]) then
+			jump = jump_2
+			key_timer = time_global() + 200
+		elseif (key == DIK_keys["DIK_LMENU"]) then
+			jump = jump_3
+			key_timer = time_global() + 200
+		end
+	end
+end
+
+local is_active = false
+function activate()
+	if (not ui) then
+		start()
+	end
+end
+
+function print_dbg(...)
+	if enable_debug then
+		printf(...)
+	end
+end
+
+
+-------------------------------------------------------------------
+class "ui_weather_editor" (CUIScriptWnd)
+
+function ui_weather_editor:__init(owner) super()
+	self.owner = owner
+	
+	if (not lerp) then
+		lerp = true
+		weather.pause(true) -- freeze weather values
+		active = true
+		printf("~ Disabled weather interpolation")
+	end
+	
+	self.selected = _selected
+	self.selected_group = _selected_group
+	self.cnt = 0 		 -- parameters counter / index
+	self.cnt_group = {} -- parameters counter / index per parent parameter
+	
+	self.name = {} 		 -- parameters name (by index)
+	self.typ = {} 	 	 -- parameter type (by index)
+	self.value = {}  	 -- parameter value (by index)
+	self.value_i = {}  	 -- parameter value (by parent)
+	self.parent = {} 	 -- parameter parent, useful for dealing with vector values (by index)
+	self.index = {}		 -- list parameter index, to trace list value
+	
+	self.par = {}        -- parameter element (by index)
+	self.par_cap = {}    -- parameter cap (by index)
+	self.par_hl = {}     -- parameter hightlighting (by index)
+	self.par_list = {}	 -- parameter list for lists (by index)
+	self.par_list_n = {} -- parameter numbered list for lists (by index)
+	
+	
+	-- Weather editor configs
+	self.cfg = ini_file("plugins\\debug\\weather_editor.ltx")
+	
+	-- Gether weather files
+	self.weather_files = {}
+	local fileList = getFS():file_list_open("$game_config$", dir, bit_or(FS.FS_ListFiles, FS.FS_RootOnly))
+	local count = fileList and fileList:Size() or 0
+	if count > 0 then
+		for i = 1, count do
+			local file_name = fileList:GetAt(i - 1):sub(1, -5)
+			if file_name and (not self.cfg:line_exist("ignore_files",file_name)) and (file_name ~= "[default]") then
+				self.weather_files[#self.weather_files + 1] = file_name
+			end
+		end
+	end
+	
+	self.current_weather = _file or level.get_weather()
+	self.current_hour = _hour or math.floor(level.get_time_hours())
+	
+	self:InitControls()
+	self:InitCallBacks()
+	
+	self:Reset(true)
+	
+	self:Send_MSG("%c[pda_green]Press H for info")
+end
+
+function ui_weather_editor:__finalize()
+end
+
+function ui_weather_editor:InitControls()
+	self:SetWndRect			(Frect():set(0,0,1024,768))
+	self:SetAutoDelete(true)
+	
+	if self.owner then
+		self.xml = self.owner.xml
+	else
+		self.xml = CScriptXmlInit()
+	end
+	
+	local xml = self.xml
+	if (not self.owner) then
+		xml:ParseFile			("ui_debug_launcher.xml")
+	end
+	
+	self.dialog	= xml:InitStatic("dbg_weather_editor", self)
+	
+	xml:InitFrame("dbg_weather_editor:frame", self.dialog)
+	xml:InitStatic("dbg_weather_editor:cap",self.dialog)
+	
+	-- Select weather file
+	self.cap_weather = xml:InitStatic("dbg_weather_editor:cap_weather",self.dialog)
+	xml:InitStatic("dbg_weather_editor:cap_weather:background",self.cap_weather)
+	
+	self.list_weather = xml:InitComboBox("dbg_weather_editor:list_weather", self.dialog)
+	self.list_weather:SetAutoDelete(true)
+	self:Register(self.list_weather, "list_weather")
+	
+	-- Select hour
+	self.cap_hour = xml:InitStatic("dbg_weather_editor:cap_hour",self.dialog)
+	xml:InitStatic("dbg_weather_editor:cap_hour:background",self.cap_hour)
+	
+	self.input_hour = xml:InitEditBox("dbg_weather_editor:input_hour", self.dialog)
+	self:Register(self.input_hour,"input_hour")
+	self.input_hour:SetText("Enter hour...")
+	
+	xml:InitStatic("dbg_weather_editor:input_hour:background",self.input_hour)
+	
+	-- Copy hour settings
+	self.btn_hour_copy = xml:Init3tButton("dbg_weather_editor:btn_hour_copy", self.dialog)
+	self:Register(self.btn_hour_copy, "btn_hour_copy")
+	
+	-- Paste hour settings
+	self.btn_hour_paste = xml:Init3tButton("dbg_weather_editor:btn_hour_paste", self.dialog)
+	self:Register(self.btn_hour_paste, "btn_hour_paste")
+	
+	-- Name new preset
+	self.input_preset = xml:InitEditBox("dbg_weather_editor:input_preset", self.dialog)
+	self.input_preset:SetText("Enter file name...")
+	--self:Register(self.input_preset,"input_preset")
+	
+	xml:InitStatic("dbg_weather_editor:input_preset:background",self.input_preset)
+	
+	-- Save new preset
+	self.btn_preset = xml:Init3tButton("dbg_weather_editor:btn_preset", self.dialog)
+	self:Register(self.btn_preset, "btn_preset")
+	
+	-- Save current file
+	self.btn_save = xml:Init3tButton("dbg_weather_editor:btn_save", self.dialog)
+	self:Register(self.btn_save, "btn_save")
+	
+	-- Reload weather
+	self.btn_reload = xml:Init3tButton("dbg_weather_editor:btn_reload", self.dialog)
+	self:Register(self.btn_reload, "btn_reload")
+	
+	-- Parameters
+	self.scroll_par = xml:InitScrollView("dbg_weather_editor:scroll_par", self.dialog)
+	self.scroll_par:Clear()
+	
+	local functor = function(t,a,b) return t[a].indx < t[b].indx end
+	for par,v in spairs(parameters,functor) do
+		local _st = xml:InitStatic("dbg_weather_editor:tmp_par", nil)
+		
+		-- Parameter cap
+		local n = #self.par_cap + 1
+		self.par_cap[n] = xml:InitTextWnd("dbg_weather_editor:op_par:cap", _st)
+		self.par_cap[n]:SetText(par)
+		
+		-- Multi boxes for vectors
+		local par_i = ((v.typ == 2) and 3) or ((v.typ == 3) and 4) or 1
+		for i=1,par_i do
+		
+			-- Tracers
+			local ext = self:GetStringByType(i,v.typ)
+			local str = par .. ext
+			self.cnt = self.cnt + 1
+			self.name[self.cnt] = str
+			self.typ[self.cnt] = v.typ
+			self.parent[self.cnt] = par
+			
+			self.cnt_group[n] = self.cnt_group[n] or {}
+			local size_cg = #self.cnt_group[n] + 1
+			self.cnt_group[n][size_cg] = self.cnt
+			
+			-- Parameter element and hightlight texture
+			if v.typ == 0 then
+				self.par[self.cnt] = xml:InitComboBox("dbg_weather_editor:op_par:list", _st)
+				self:Register(self.par[self.cnt],"par_" .. self.cnt)
+				
+				self.par_hl[self.cnt] = xml:InitStatic("dbg_weather_editor:op_par:hl_list", _st)
+			else
+				self.par[self.cnt] = xml:InitEditBox("dbg_weather_editor:op_par:input" .. ext, _st)
+				self:Register(self.par[self.cnt],"par_" .. self.cnt)
+				
+				self.par_hl[self.cnt] = xml:InitStatic("dbg_weather_editor:op_par:hl" .. ext, _st)
+			end
+			
+			-- Hightlight last selected parameter
+			if (self.cnt ~= _selected) then
+				self.par_hl[self.cnt]:Show(false)
+			end
+		end
+		
+		self.scroll_par:AddWindow(_st, true)
+		_st:SetAutoDelete(false)
+	end
+	
+	-- Lines
+	xml:InitStatic("dbg_weather_editor:line_1",self.dialog)
+	xml:InitStatic("dbg_weather_editor:line_2",self.dialog)
+	
+	-- Message Window 
+	self.msg_wnd = xml:InitFrame("hint_wnd:background",self)
+	self.msg_wnd:SetAutoDelete(false)
+	self.msg_wnd_text = xml:InitTextWnd("hint_wnd:text",self.msg_wnd)
+	self.msg_wnd_text:SetTextAlignment(2)
+	
+	self.msg_wnd:Show(false)
+	self.msg_wnd:SetColor(GetARGB(255,0,0,0))
+	
+	-- Hint Window 
+	self.hint_wnd = xml:InitFrame("help_wnd:background",self)
+	self.hint_wnd:SetAutoDelete(false)
+	self.hint_wnd_text = xml:InitTextWnd("help_wnd:text",self.hint_wnd)
+	--self.hint_wnd_text:SetTextAlignment(2)
+	self.hint_wnd_text:SetText(game.translate_string("st_ui_dbg_weather_about"))
+	self.hint_wnd_text:AdjustHeightToText()
+	self.hint_wnd_text:SetWndSize(vector2():set(msg_width, self.hint_wnd_text:GetHeight()+10))
+	self.hint_wnd_text:SetWndPos(vector2():set(20,10))
+	
+	self.hint_wnd:Show(false)
+	self.hint_wnd:SetWndSize(vector2():set(msg_width, 700))
+	self.hint_wnd:SetWndPos(vector2():set( self.dialog:GetWidth() , 1 ))
+	self.hint_wnd:SetColor(GetARGB(255,0,0,0))
+end
+
+function ui_weather_editor:InitCallBacks()
+	self:AddCallback("list_weather", ui_events.LIST_ITEM_SELECT, self.OnSelectWeatherFile, self)
+	self:AddCallback("input_hour", ui_events.EDIT_TEXT_COMMIT, self.OnSelectHour, self)
+	self:AddCallback("btn_hour_copy", ui_events.BUTTON_CLICKED, self.OnButtonHourCopy, self)
+	self:AddCallback("btn_hour_paste", ui_events.BUTTON_CLICKED, self.OnButtonHourPaste, self)
+	self:AddCallback("btn_preset", ui_events.BUTTON_CLICKED, self.OnButtonSavePreset, self)
+	self:AddCallback("btn_save", ui_events.BUTTON_CLICKED, self.OnButtonSave, self)
+	self:AddCallback("btn_reload", ui_events.BUTTON_CLICKED, self.OnButtonResume, self)
+	
+	for i=1,self.cnt do
+		local typ = self.typ[i]
+		if typ == 0 then
+			self:AddCallback("par_" .. i, ui_events.LIST_ITEM_SELECT, self["OnInput_" .. i], self)
+		else
+			self:AddCallback("par_" .. i, ui_events.EDIT_TEXT_COMMIT, self["OnInput_" .. i], self)
+		end
+	end
+end
+
+function ui_weather_editor:Reset(force,use_cache)
+	local _use_cache = use_cache and (size_table(_cache) > 0) and (size_table(_cache_i) > 0) and true
+	
+	local hour = self.current_hour
+	_hour = self.current_hour
+	
+	local file = self.current_weather
+	_file = self.current_weather
+	
+	empty_table(self.index)
+	--print_dbg("/ ui_weather_editor:Reset | file: %s - hour: %s",file,hour)
+	
+	-- Load weather list
+	if force then
+		self.list_weather:ClearList()
+		for i=1,#self.weather_files do
+			local file = self.weather_files[i]
+			self.list_weather:AddItem(file, i)
+			--print_dbg("/ ui_weather_editor:Reset | self.list_weather:AddItem(%s, %s)",file,i)
+		end
+		self.list_weather:SetText(file)
+		self.input_hour:SetText(hour)
+	end
+	
+	-- Read values and convert to numbers if needed
+	if _use_cache then 
+		--print_dbg("/ ui_weather_editor:Reset | use cache")
+		copy_table(self.value_i, _cache_i)
+		
+		if (not _memo_i[file]) then _memo_i[file] = {} end
+		if (not _memo_i[file][hour]) then _memo_i[file][hour] = {} end
+		copy_table(_memo_i[file][hour], _cache_i)
+		
+	elseif _memo_i[file] and _memo_i[file][hour] then
+		--print_dbg("/ ui_weather_editor:Reset | use memo | file: %s - hour: %s", file, hour)
+		copy_table(self.value_i, _memo_i[file][hour])
+		
+	else
+		-- Read weather file
+		local ltx = ini_file(dir .. file .. ".ltx")
+		if (not ltx) then
+			printf("!ERROR ui_weather_editor:Reset | weather file don't exist: %s", dir .. file)
+		end
+	
+		local hour_section = self:GetHourSection(hour)
+		--print_dbg("/ ui_weather_editor:Reset | hour_section: %s", hour_section)
+		for par,v in pairs(parameters) do
+			self.value_i[par] = alun_utils.parse_list(ltx, hour_section, par)
+			
+			-- use default values if nothing is found
+			if (#self.value_i[par] == 0) then
+				copy_table(self.value_i[par], v.def)
+			end
+			
+			for i=1,#self.value_i[par] do
+				if (v.typ ~= 0) then
+					self.value_i[par][i] = tonumber(self.value_i[par][i])
+				end
+				--print_dbg("/ ui_weather_editor:Reset | self.value_i[%s][%s] = %s", par,i,self.value_i[par][i])
+			end
+		end
+	end
+	
+	-- Fill values
+	for i=1,self.cnt do
+	
+		local value
+		if _use_cache then
+			value = _cache[i]
+			
+			if (not _memo[file]) then _memo[file] = {} end
+			if (not _memo[file][hour]) then _memo[file][hour] = {} end
+			_memo[file][hour][i] = _cache[i]
+		elseif _memo[file] and _memo[file][hour] then
+			value = _memo[file][hour][i]
+		else
+			value = self:GetParameterValue(i)
+		end
+		--print_dbg("/ ui_weather_editor:Reset | Filler | self.value[%s] (%s) = %s", i, self.parent[i], value)
+		
+		self.value[i] = value
+		
+		-- For lists
+		if force and (self.typ[i] == 0) then
+			self.par[i]:ClearList()
+			local n = self.cfg:line_count(self.parent[i])
+			local result,id,val = "","",""
+			for j=0,n-1 do
+				result,id,val = self.cfg:r_line_ex(self.parent[i],j,"","")
+				self.par[i]:AddItem(id, j+1)
+				
+				if (not self.par_list[i]) then
+					self.par_list[i] = {}
+				end
+				if (not self.par_list_n[i]) then
+					self.par_list_n[i] = {}
+				end
+				
+				self.par_list[i][id] = true
+				self.par_list_n[i][#self.par_list_n[i] + 1] = id
+				--print_dbg("/ ui_weather_editor:Reset | Filler | self.par_list[%s] = %s", i, id)
+			end
+			
+			-- empty section for thunderbolt_collection
+			if (self.parent[i] == "thunderbolt_collection") then
+				self.par[i]:AddItem("", n+1)
+				self.par_list[i][""] = true
+				self.par_list_n[i][#self.par_list_n[i] + 1] = ""
+			end
+		end
+		
+		self.par[i]:SetText(value)
+	end
+	
+	-- Apply weather values in-game
+	for par,v in pairs(parameters) do
+		self:ApplyParameterValue(v.typ, par)
+	end
+end
+
+
+---------------< Utility >---------------
+local indx_str = {
+	[1] = "_r",
+	[2] = "_g",
+	[3] = "_b",
+	[4] = "_a",
+}
+function ui_weather_editor:GetStringByType(indx,typ)
+	if (typ == 0) or (typ == 1) then
+		return ""
+	else
+		return indx_str[indx]
+	end
+end
+
+function ui_weather_editor:GetHourSection(hour)
+	local zero = (hour < 10) and "0" or ""
+	return (zero .. hour .. ":00:00")
+end
+
+function ui_weather_editor:GetParameterValue(cnt)
+	local str = self.name[cnt]
+	local parent = self.parent[cnt]
+	local typ = self.typ[cnt]
+	
+	--print_dbg("/ ui_weather_editor:GetParameterValue | str: %s - parent: %s - typ: %s", str, parent, typ)
+	if (typ == 0) or (typ == 1) then
+		return self.value_i[parent][1]
+	end
+	
+	if (string.sub(str,-2) == "_r") then return self.value_i[parent][1]
+	elseif (string.sub(str,-2) == "_g") then return self.value_i[parent][2]
+	elseif (string.sub(str,-2) == "_b") then return self.value_i[parent][3]
+	elseif (string.sub(str,-2) == "_a") then return self.value_i[parent][4]
+	end
+	printf("!ERROR no pass!")
+end
+
+function ui_weather_editor:SetParameterValue(cnt,value)
+	local str = self.name[cnt]
+	local parent = self.parent[cnt]
+	local typ = self.typ[cnt]
+	
+	if self:IsInvalidValue(cnt,typ,value) then
+		self:Send_MSG("!ERROR nil value found for parameter [%s]", str)
+		return
+	end
+	
+	if (typ == 0) or (typ == 1) then
+		self.value_i[parent][1] = value
+	elseif (string.sub(str,-2) == "_r") then self.value_i[parent][1] = value
+	elseif (string.sub(str,-2) == "_g") then self.value_i[parent][2] = value
+	elseif (string.sub(str,-2) == "_b") then self.value_i[parent][3] = value
+	elseif (string.sub(str,-2) == "_a") then self.value_i[parent][4] = value
+	end
+	
+	local hour = self.current_hour
+	local file = self.current_weather
+	
+	if (not _memo[file]) then _memo[file] = {} end
+	if (not _memo[file][hour]) then _memo[file][hour] = {} end
+	copy_table(_memo[file][hour], self.value)
+	
+	if (not _memo_i[file]) then _memo_i[file] = {} end
+	if (not _memo_i[file][hour]) then _memo_i[file][hour] = {} end
+	copy_table(_memo_i[file][hour], self.value_i)
+end
+
+function ui_weather_editor:ApplyParameterValue(typ, parent)
+
+	--print_dbg("# Setting now: %s",parent)
+	
+	if (typ == 0) then
+		local value = self.value_i[parent][1]
+		if value then
+			weather.set_value_string(parent,value)
+			print_dbg("-weather.set_value_string(%s,%s)",parent,value)
+		else
+			printf("! MISSING VALUE: ui_weather_editor:ApplyParameterValue(%s, %s)", typ ,parent)
+		end
+	elseif (typ == 1) then
+		local value = self.value_i[parent][1]
+		if value and (type(value) == "number") then
+			weather.set_value_numric(parent,value)
+			print_dbg("-weather.set_value_numric(%s,%s)",parent,value)
+		else
+			printf("! MISSING VALUE: ui_weather_editor:ApplyParameterValue(%s, %s)", typ ,parent)
+		end
+	elseif (typ == 2) then
+		local value_1 = self.value_i[parent][1]
+		local value_2 = self.value_i[parent][2]
+		local value_3 = self.value_i[parent][3]
+		if value_1 and (type(value_1) == "number")
+		and value_2 and (type(value_2) == "number")
+		and value_3 and (type(value_3) == "number")
+		then
+			weather.set_value_vector(parent,value_1,value_2,value_3)
+			print_dbg("-weather.set_value_vector(%s,%s,%s,%s)",parent,value_1,value_2,value_3)
+		else
+			printf("! MISSING VALUE: ui_weather_editor:ApplyParameterValue(%s, %s)", typ ,parent)
+		end
+	elseif (typ == 3) then
+		local value_1 = self.value_i[parent][1]
+		local value_2 = self.value_i[parent][2]
+		local value_3 = self.value_i[parent][3]
+		local value_4 = self.value_i[parent][4]
+		if value_1 and (type(value_1) == "number")
+		and value_2 and (type(value_2) == "number")
+		and value_3 and (type(value_3) == "number")
+		and value_4 and (type(value_4) == "number")
+		then
+			weather.set_value_vector(parent,value_1,value_2,value_3,value_4)
+			print_dbg("-weather.set_value_vector2(%s,%s,%s,%s,%s)",parent,value_1,value_2,value_3,value_4)
+		else
+			printf("! MISSING VALUE: ui_weather_editor:ApplyParameterValue(%s, %s)", typ ,parent)
+		end
+	end
+end
+
+function ui_weather_editor:IsInvalidValue(cnt,typ,value)
+
+	-- Strings
+	if (typ == 0) then
+		if value == "" then
+			return false
+		elseif value and self.par_list[cnt][value] then
+			return false
+		else
+			return true
+		end 
+		
+	-- Numbers
+	elseif not (value and value ~= "" and tonumber(value)) then
+		return true
+	end
+	
+	return false
+end
+
+function ui_weather_editor:Send_MSG(text,...)
+	local str = strformat(text,...)
+	
+	self.msg_wnd:Show(true)
+	self.msg_wnd_text:SetText(str)
+	self.msg_wnd_text:AdjustHeightToText()
+	self.msg_wnd_text:SetWndSize(vector2():set(msg_width, self.msg_wnd_text:GetHeight()+10))
+	self.msg_wnd_text:SetWndPos(vector2():set(0,20))
+	
+	self.msg_wnd:SetWndSize(vector2():set(msg_width, self.msg_wnd_text:GetHeight()+44))
+	self.msg_wnd:SetWndPos(vector2():set( self.dialog:GetWidth() , (_hight - self.msg_wnd:GetHeight()) ))
+	
+	self.msg_wnd_timer = time_global() + 4000
+end
+
+local toggle_hint = false
+function ui_weather_editor:ShowHint()
+	toggle_hint = not toggle_hint
+
+	self.hint_wnd_show = toggle_hint
+end
+
+
+function ui_weather_editor:Update()
+	CUIScriptWnd.Update(self)
+
+	-- Trick for managing shift/ctrl hold
+	if time_global() > key_timer then
+		key_timer = time_global() + 200
+		jump = jump_1
+	end
+	
+	if (self.msg_wnd_timer and time_global() > self.msg_wnd_timer) then 
+		self.msg_wnd_timer = nil
+		self.msg_wnd:Show(false)
+	end
+	
+	if (self.hint_wnd_show) then 
+		self.hint_wnd:Show(true)
+	else
+		self.hint_wnd:Show(false)
+	end
+end
+
+
+---------------< Callbacks >---------------
+function ui_weather_editor:OnSelectWeatherFile()
+	self.current_weather = self.weather_files[self.list_weather:CurrentID()]
+	level.set_weather(self.current_weather,true)
+	self:Reset(false)
+	self:Send_MSG("Selected weather file: %s", self.current_weather)
+end
+
+function ui_weather_editor:OnSelectHour(hour)
+	hour = hour or tonumber(self.input_hour:GetText() or "") or 9
+	self.current_hour = (hour > 23 and 23) or (hour < 0 and 0) or hour
+	self.input_hour:SetText(self.current_hour)
+	self:Reset(false)
+	weather.sun_time(self.current_hour, 0)
+	self:Send_MSG("Selected hour [%s] of file: %s", self:GetHourSection(self.current_hour), self.current_weather)
+end
+
+function ui_weather_editor:OnButtonHourCopy()
+	copy_table(_cache, self.value)
+	copy_table(_cache_i, self.value_i)
+	
+	self:Send_MSG("Copied values of hour [%s] of file: %s", self:GetHourSection(self.current_hour), self.current_weather)
+end
+
+function ui_weather_editor:OnButtonHourPaste()
+	if (_cache and _cache_i) then
+		self:Reset(false, true)
+		self:Send_MSG("Applied copied values")
+	else
+		self:Send_MSG("No hour values are copied yet!")
+	end
+end
+
+function ui_weather_editor:OnButtonSavePreset()
+	-- Read name, see if its there
+	local new_file = self.input_preset:GetText()
+	if not (new_file and new_file ~= "") then
+		self:Send_MSG("Enter a name for your file first!")
+		return
+	end
+	
+	-- Check naming rule
+	local str_w = string.sub(new_file,1,2)
+	local is_w = (str_w == "w_")
+	if not (is_w) then
+		self:Send_MSG("%c[pda_red]Incorrect name pattern!\\n%c[ui_gray_1]Naming pattern: w_(custom_name)")
+		return
+	end
+	
+	local ltx = ini_file_ex(dir .. new_file .. ".ltx", true)
+	for hr=0,23 do
+		self.current_hour = hr
+		self:Reset()
+		local hour_section = self:GetHourSection(hr)
+		for par,v in pairs(parameters) do
+			local value
+			if (v.typ == 2) then
+				value = self.value_i[par][1] .. "," .. self.value_i[par][2] .. "," .. self.value_i[par][3]
+			elseif (v.typ == 3) then
+				value = self.value_i[par][1] .. "," .. self.value_i[par][2] .. "," .. self.value_i[par][3] .. "," .. self.value_i[par][4]
+			else
+				value = self.value_i[par][1]
+			end
+			
+			ltx:w_value(hour_section,par,value)
+		end
+	end
+	ltx:save()
+	
+	self:Send_MSG("Saved new file: %s\\nCheck it under weather's directory: %s", new_file, dir)
+end
+
+function ui_weather_editor:OnButtonSave()
+	local ltx = ini_file_ex(dir .. self.current_weather .. ".ltx",true)
+	if (not ltx) then
+		self:Send_MSG("%c[pda_red]No file found!")
+	end
+
+	for hr=0,23 do
+		self.current_hour = hr
+		self:Reset()
+		local hour_section = self:GetHourSection(hr)
+		for par,v in pairs(parameters) do
+			local value
+			if (v.typ == 2) then
+				value = self.value_i[par][1] .. "," .. self.value_i[par][2] .. "," .. self.value_i[par][3]
+			elseif (v.typ == 3) then
+				value = self.value_i[par][1] .. "," .. self.value_i[par][2] .. "," .. self.value_i[par][3] .. "," .. self.value_i[par][4]
+			else
+				value = self.value_i[par][1]
+			end
+			
+			ltx:w_value(hour_section,par,value)
+		end
+	end
+	ltx:save()
+	
+	self:Send_MSG("Saved modified file: %s\\nCheck it under weather's directory: %s", self.current_weather, dir)
+end
+
+function ui_weather_editor:OnButtonResume()
+	self:OnCancel()
+	
+	-- Resume weather
+	weather.pause(false)
+	lerp = false
+	active = false
+	
+	ui = nil
+end
+
+function ui_weather_editor:CleanMemo()
+	empty_table(_memo)
+	empty_table(_memo_i)
+	self:Reset(false)
+	self:Send_MSG("Cleared memory!")
+end
+
+function ui_weather_editor:SwitchParam(state, vert)
+
+	local function get_param_index(state, vert)
+	
+		--// Vertical movement
+		if vert then
+			local jumps = ((jump == jump_3) and 3) or ((jump == jump_2) and 2) or 1
+			
+			if state then
+				self.selected_group = self.selected_group + jumps
+			else
+				self.selected_group = self.selected_group - jumps
+			end
+			
+			if (self.selected_group > #self.cnt_group) then
+				self.selected_group = 1
+			elseif (self.selected_group < 1) then
+				self.selected_group = #self.cnt_group
+			end
+			
+			return self.cnt_group[self.selected_group][1]
+		
+		--// Horizental movement
+		else
+			print_dbg("selected_group: %s", self.selected_group)
+			local group = self.cnt_group[self.selected_group]
+			if group then
+				local first = group[1]
+				local last = group[#group]
+				if state and (self.selected < last) then
+					self.selected = self.selected + 1
+				elseif (not state) and (self.selected > first) then
+					self.selected = self.selected - 1
+				end
+			else
+				printf("! group doesn't exist for selected_group: %s", self.selected_group)
+			end
+			return self.selected
+		end
+	end
+	
+	if (not self.selected) or (not self.selected_group) then
+		self.selected = _selected or 1
+		self.selected_group = _selected_group or 1
+	else
+		self.par_hl[self.selected]:Show(false)
+		self.selected = get_param_index(state, vert)
+	end
+
+	self.par_hl[self.selected]:Show(true)
+	_selected = self.selected
+	_selected_group = self.selected_group
+end
+
+function ui_weather_editor:SwitchValue(state, selected)
+	if (not selected) then
+		return
+	end
+	
+	local n = selected
+	local typ = self.typ[n]
+	local parent = self.parent[n]
+	local val = self.value[n]
+	
+	local new_val
+	if typ ~= 0 then
+		local input_val = self.par[n]:GetText()
+		local curr_val = (not self:IsInvalidValue(n,typ,input_val)) and tonumber(input_val)
+		if (not curr_val) then
+			self:Send_MSG("%c[pda_red]Couldn't read previous input for parameter (%s)", self.name[n])
+			return
+		end
+		curr_val = u_r(curr_val, precision)
+		
+		local max_val = parameters[parent].max
+		local min_val = parameters[parent].min
+		local step = parameters[parent].step * jump
+	
+		if state then
+			curr_val = curr_val + step
+		else
+			curr_val = curr_val - step
+		end
+		new_val = u_c(curr_val, min_val, max_val)
+	else
+		local curr_val = self.par[n]:GetText()
+		if (not curr_val) then
+			return
+		end
+		
+		if not (self.par_list_n[n]) then
+			return
+		end
+		
+		if (not self.index[n]) then
+			for i=1,#self.par_list_n[n] do
+				if (self.par_list_n[n][i] == curr_val) then
+					self.index[n] = i
+					break
+				end
+			end
+			if (not self.index[n]) then
+				return
+			end
+		end
+		
+		local num = #self.par_list_n[n]
+		if state then
+			self.index[n] = (self.index[n] < num) and (self.index[n] + 1) or self.index[n]
+		else
+			self.index[n] = (self.index[n] > 0) and (self.index[n] - 1) or self.index[n]
+		end
+		
+		local txt = self.par_list_n[n][self.index[n]]
+		if self:IsInvalidValue(n,0,txt) then
+			self:Send_MSG("%c[pda_red]Invalid path/section for parameter (%s)", self.name[n])
+			return
+		end
+		
+		new_val = txt
+	end
+	
+	if new_val then
+		self.value[n] = new_val
+		self.par[n]:SetText(new_val)
+		self:SetParameterValue(n,new_val)
+		self:ApplyParameterValue(typ,parent)
+		self:Send_MSG(self.name[n] .. " := " .. self.value[n], 4)
+	else
+		self:Send_MSG("%c[pda_red]No value can be set for (%s)",self.name[n])
+	end
+end
+
+function ui_weather_editor:SwitchValueGroup(state, selected_group)
+	if (not selected_group) then
+		return
+	end
+	print_dbg("/ ui_weather_editor | selected_group: %s", selected_group)
+	local group = self.cnt_group[selected_group]
+	local size = (#group > 3) and 3 or #group -- no need for alpha value
+	for i=1,size do
+		self:SwitchValue(state, group[i])
+	end
+end
+
+function ui_weather_editor:OnInput(cnt)
+	local val = self.par[cnt]:GetText()
+	local typ = self.typ[cnt]
+	local parent = self.parent[cnt]
+	
+	if self:IsInvalidValue(cnt,typ,val) then
+		self:Send_MSG("%c[pda_red]Error with input for parameter (%s)", self.name[cnt])
+		return
+	end
+	
+	if (typ == 0) then
+		val = val or ""
+	else
+		val = tonumber(val)
+		val = u_r(val, precision)
+	end
+	
+	self.value[cnt] = val
+	self:SetParameterValue(cnt,val)
+	self:ApplyParameterValue(typ,parent)
+end
+
+function ui_weather_editor:OnCancel()
+	self:HideDialog()
+	self:Show(false)
+	--ui = nil
+	
+	UnregisterScriptCallback("on_key_release",on_key_release)
+	UnregisterScriptCallback("on_key_hold",on_key_hold)
+	
+	_G.KEYS_UNLOCK					= true
+	
+	if (level.present()) then
+		printf("- main_menu off")
+		get_console():execute("main_menu off")
+	end
+end
+
+function ui_weather_editor:OnKeyboard(dik, keyboard_action)
+	local res = CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
+	if (res == false) then
+		local bind = dik_to_bind(dik)
+		if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+			if dik == DIK_keys.DIK_NUMPAD8 then
+				self:SwitchValue(true, self.selected)
+			elseif dik == DIK_keys.DIK_NUMPAD2 then
+				self:SwitchValue(false, self.selected)
+			elseif dik == DIK_keys.DIK_NUMPAD9 then
+				self:SwitchValueGroup(true, self.selected_group)
+			elseif dik == DIK_keys.DIK_NUMPAD3 then
+				self:SwitchValueGroup(false, self.selected_group)
+				
+			elseif dik == DIK_keys.DIK_UP then
+				self:SwitchParam(false, true)
+			elseif dik == DIK_keys.DIK_DOWN then
+				self:SwitchParam(true, true)
+			elseif dik == DIK_keys.DIK_RIGHT then
+				self:SwitchParam(true, false)
+			elseif dik == DIK_keys.DIK_LEFT then
+				self:SwitchParam(false, false)
+				
+			elseif dik == DIK_keys.DIK_ADD then
+				self:OnSelectHour(self.current_hour + 1)
+			elseif dik == DIK_keys.DIK_SUBTRACT then
+				self:OnSelectHour(self.current_hour - 1)
+			elseif dik == DIK_keys.DIK_NUMPAD5 then
+				self:OnButtonHourCopy()
+			elseif dik == DIK_keys.DIK_NUMPAD6 then
+				self:OnButtonHourPaste()
+				
+			elseif dik == DIK_keys.DIK_DELETE then
+				self:CleanMemo()
+			elseif dik == DIK_keys.DIK_H then
+				self:ShowHint()
+			elseif dik == DIK_keys.DIK_ESCAPE then
+				self:OnCancel()
+			end
+		end
+	end
+	return res
+end
+
+function ui_weather_editor:OnInput_1()
+	self:OnInput(1)
+end
+function ui_weather_editor:OnInput_2()
+	self:OnInput(2)
+end
+function ui_weather_editor:OnInput_3()
+	self:OnInput(3)
+end
+function ui_weather_editor:OnInput_4()
+	self:OnInput(4)
+end
+function ui_weather_editor:OnInput_5()
+	self:OnInput(5)
+end
+function ui_weather_editor:OnInput_6()
+	self:OnInput(6)
+end
+function ui_weather_editor:OnInput_7()
+	self:OnInput(7)
+end
+function ui_weather_editor:OnInput_8()
+	self:OnInput(8)
+end
+function ui_weather_editor:OnInput_9()
+	self:OnInput(9)
+end
+function ui_weather_editor:OnInput_10()
+	self:OnInput(10)
+end
+function ui_weather_editor:OnInput_11()
+	self:OnInput(11)
+end
+function ui_weather_editor:OnInput_12()
+	self:OnInput(12)
+end
+function ui_weather_editor:OnInput_13()
+	self:OnInput(13)
+end
+function ui_weather_editor:OnInput_14()
+	self:OnInput(14)
+end
+function ui_weather_editor:OnInput_15()
+	self:OnInput(15)
+end
+function ui_weather_editor:OnInput_16()
+	self:OnInput(16)
+end
+function ui_weather_editor:OnInput_17()
+	self:OnInput(17)
+end
+function ui_weather_editor:OnInput_18()
+	self:OnInput(18)
+end
+function ui_weather_editor:OnInput_19()
+	self:OnInput(19)
+end
+function ui_weather_editor:OnInput_20()
+	self:OnInput(20)
+end
+function ui_weather_editor:OnInput_21()
+	self:OnInput(21)
+end
+function ui_weather_editor:OnInput_22()
+	self:OnInput(22)
+end
+function ui_weather_editor:OnInput_23()
+	self:OnInput(23)
+end
+function ui_weather_editor:OnInput_24()
+	self:OnInput(24)
+end
+function ui_weather_editor:OnInput_25()
+	self:OnInput(25)
+end
+function ui_weather_editor:OnInput_26()
+	self:OnInput(26)
+end
+function ui_weather_editor:OnInput_27()
+	self:OnInput(27)
+end
+function ui_weather_editor:OnInput_28()
+	self:OnInput(28)
+end
+function ui_weather_editor:OnInput_29()
+	self:OnInput(29)
+end
+function ui_weather_editor:OnInput_30()
+	self:OnInput(30)
+end
+function ui_weather_editor:OnInput_31()
+	self:OnInput(31)
+end
+function ui_weather_editor:OnInput_32()
+	self:OnInput(32)
+end
+function ui_weather_editor:OnInput_33()
+	self:OnInput(33)
+end
+function ui_weather_editor:OnInput_34()
+	self:OnInput(34)
+end
+function ui_weather_editor:OnInput_35()
+	self:OnInput(35)
+end
+function ui_weather_editor:OnInput_36()
+	self:OnInput(36)
+end
+function ui_weather_editor:OnInput_37()
+	self:OnInput(37)
+end
+function ui_weather_editor:OnInput_38()
+	self:OnInput(38)
+end
+function ui_weather_editor:OnInput_39()
+	self:OnInput(39)
+end
+function ui_weather_editor:OnInput_40()
+	self:OnInput(40)
+end
+function ui_weather_editor:OnInput_41()
+	self:OnInput(41)
+end
+function ui_weather_editor:OnInput_42()
+	self:OnInput(42)
+end

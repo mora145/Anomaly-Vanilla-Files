@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+
+<!-- Lukash (Freedom Leader) -->
+	<string id="about_freedom_lider_miklyha_0">
+		<text>Are you the stalker who broke through the Brain Scorcher and lived there for half a year?</text>
+	</string>
+	<string id="about_freedom_lider_miklyha_1">
+		<text>Well, one of them. And it wasn't half a year - more like just over a month. But yeah, name's Lukash. Nice to meet you.</text>
+	</string>
+	<string id="about_freedom_lider_miklyha_2">
+		<text>How was it?</text>
+	</string>
+	<string id="about_freedom_lider_miklyha_3">
+		<text>Look, buddy. I know that place is interesting and all, but I'd rather not start reminiscing. What matters most is that I got out safe and sound.</text>
+	</string>
+	<string id="about_freedom_lider_miklyha_4">
+		<text>Got it. Thanks anyway.</text>
+	</string>
+	
+	<string id="monolith_eidolon_start_0">
+		<text>Praise the Monolith, brother.</text>
+	</string>
+	
+	<string id="find_blackbox_mlr_reward_freedom_0">
+		<text>I found a flight recorder.</text>
+	</string>
+	<string id="find_blackbox_mlr_reward_freedom_1">
+		<text>Oh, serious? Bring it here. Let's see what these bozos are planning.</text>
+	</string>
+
+
+	<string id="look_for_cs_history_part_3_1_0">
+		<text>I'm looking for Leshiy, is he with you?</text>
+	</string>
+	<string id="look_for_cs_history_part_3_1_1">
+		<text>He sure is. Head down to the first floor, he's at the end of it.</text>
+	</string>
+	<string id="look_for_cs_history_part_3_1_2">
+		<text>Gracias.</text>
+	</string>
+	
+	<string id="devushka_5_help_0">
+		<text>Hey Lukash, a friend of mine wanted to come see you. I think you know her.</text>
+	</string>
+	<string id="devushka_5_help_1">
+		<text>Ah, yes. Come on in! Help yourself to some grass - you might need it for the trip ahead. You made the right choice coming here, you two. Loki's job became a lot harder after the Monolith got a second wind. The medicine you'll bring him will help save many decent people.</text>
+	</string>
+	
+	<string id="devushka_help1_0">
+		<text>Apparently Hip has never been past the Barrier before. Is this true?</text>
+	</string>
+	<string id="devushka_help1_1">
+		<text>Si. Can't blame her. After you watch some of your friends get zombified before your eyes, makes sense you'd want to get the hell away from the place it happened. Between that, and having to fight Duty...eh. But she seems resolved to make the trip now. The two of you will be going to Yanov station in Jupiter. Drop these meds off with Loki once you arrive.</text>
+	</string>
+	<string id="devushka_help1_2">
+		<text>Alright. The sooner we go, the better.</text>
+	</string>
+	<string id="devushka_help1_3">
+		<text>Hang on Lukash. Just need a minute to get everything together.</text>
+	</string>
+
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_ask">
+		<text>Hey, Lukash! Care to chat about life in Freedom for a bit?</text>
+	</string>
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_1">
+		<text>Sure! The lads like to feast on Bob Marley's birthday whenever they can remember it. Gotta make sure we're all stocked up on some quality product before it comes around again - mostly ham, but we're getting requests for some fabulous herbs, too.\n \nIt&#8217;s hilarious that many of the new boys mistakenly equate getting high as shit with the broader culture of Freedom, but what can you do? I&#8217;m not here to tell these guys how they can or can&#8217;t live their lives. Imagine that; you come to a place like the Zone, and someone still tries to be your daddy by telling you what you can or can&#8217;t do.\n \nFor those kinds of stalkers, those stalkers that need a daddy, they can go join Duty. When they find themselves bleeding out in a ditch, desperately calling for help, they&#8217;ll come to realize how utterly useless this daddy of theirs really is.</text>
+	</string>
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_2">
+		<text>A while back, the military developed a bulletproof vest with encapsulated artefact fragments that provided self-healing capabilities. Naturally, we had to get hold of one; once we did, we tried adapting it into our own suits.\n \nI admit, it really didn&#8217;t go anywhere, but nevertheless, we made the data publicly available in case anyone else wanted to try.\n \nThis is something else that Freedom is all about - the free flow of information. A wise man once told me: &#8220;Beware of he who would deny you access to information, because in his heart he dreams himself your master.&#8221; I&#8217;ll never forget those words and never will Freedom.</text>
+	</string>
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_3">
+		<text>Yeah, I've got a minute.\n \nNo one likes walking through the so-called Bloodsucker Village nearby. Sure, might look empty, but no one wants to be the guy who actually makes sure, you know?\n \nStill, this is a better stance than the one my men had before. I can&#8217;t get over how many of my guys actually tried to bone these mutants at one point. Like, what? I know one time I said that whoever snaps a pic of their pecker inside a live bloodsucker would become a legend, but it was just a joke, guys! A fucking joke!\n \nStill, chaps wound up dying&#8230; either some of the crustier lads hazed the younger stalkers into actually trying it, or some jackoff tripped way too hard and made a severe attempt&#8230;\n \nIf you only knew how many times I&#8217;ve had to hear stories about how yet another Freedom stalker died because of this&#8230; if only you knew. Holy shit, man. Just unreal.</text>
+	</string>
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_4">
+		<text>Alright. Today can be a cautionary tale. While Freedom is famously carefree on the surface, we don&#8217;t abide by snitches. Here and there, Freedom has a sad history of having to deal with this kind of shit.\n \nThese stories begin differently, but they all end up the same way - with the bastard bleeding out, clutching his wounds, and profoundly regretting his poor life decisions. Nobody betrays Freedom&#8217;s trust like that and stays breathing for too long.</text>
+	</string>
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_5">
+		<text>Yeah, I'm actually in the mood to wax philosophical for a bit if you care to listen. The endless inclination of people to believe what they fancy rather than what evidence shows astounds me! The presence of the Zone is an indisputable scientific miracle that holds incredible potential for aiding the future growth of all mankind.\n \nSo what if the Zone can be a violent, hellish place of death and misery? Even Ecologists state it's still capable of positively improving humanity in ways that are beyond fathom. Seeking to destroy the Zone just because it could harm us is as foolish as removing a surgeon's hands merely because they can be used as fists.\n \nFreedom does not confront the Zone as an enemy, but accepts its mysteries as gifts to be cherished and challenges to be overcome. Who created the Zone? The Zone is just a reflection of who we are as a species. If you assume that the Zone will inevitably destroy humanity, then you believe that humanity will inevitably destroy itself. This is not what Freedom thinks, and this is not what I think, either.\n \nDuty represents that primitive cave-dweller who'd sooner snuff the fire out than try to harness it for his tribe. And it is for this reason that there can never be a lasting peace between us. Until Duty sees our reasoning and acquires basic logic - or all of us in Freedom fucking die - there can be no peace.</text>
+	</string>
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_6">
+		<text>Yeah, let me try to explain the relationship we have with Dushman's mercs - they don't try to spy on us or seek to bribe our members, and we don't leave them in shallow graves. It's a system that's worked pretty well so far.\n \nDespite being murderous, avaricious, and cutthroat shitbags whose trust is always bought and never earned, their contracts more often than not spread the Zone's gifts into the greater world beyond. Even if for selfish reasons, mercenaries often help in our mission as Freedomers. The fact that the military and their lapdogs in Duty actively attempt to prevent them from doing so is really the icing on the cake. So yes, we can work with them.\n \nThere are some hiccups&#8230; but those hiccups are always resolved in our favor. The mercenaries are fundamentally out of their element here - this is our home, and not theirs - so we will always have the upper hand, and they know it.</text>
+	</string>
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_7">
+		<text>Sure! Have you taken the fight to those military bootlickers recently? What a bunch of clowns. You see how hilariously incompetent and corrupt they are. Or it would be funny if they were not one of the greatest threats against the positive use of the Zone for the benefit of humanity.\n \nIf they take over, what will they do? Why, turn over the untold scientific wealth to the state, of course! The miracles and mysteries of the Zone will become just another piece in the game of international politics! Government troops must never be allowed to triumph here, and must be opposed at every opportunity!\n \nThe Zone exists so that every man, woman, and child may enjoy its wondrous gifts. I'm damned if it all slides into the slimy hands of a few corrupt oligarchs! I can picture the bureaucratic fat-cats now, eagerly greasing each other's wheels in conference rooms full of smoke and mirrors...</text>
+	</string>
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_8">
+		<text>We happily accept anyone who recognizes that the Zone is a place where laws don't apply, where you can live right and live freely under your own morals. This is, after all, what Freedom is all about. </text>
+	</string>
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_9">
+		<text>We're easily the most jolly bunch in the Zone. And the Zone's a miracle, really. Anomalies, artefacts, even mutants, all of it. Well, most of them, anyway.\n \nAnyhow, people should be able to come here and enjoy its wonders. Open access for everyone, 24/7. Sharing is caring, right? While we're at it, why not have some fun? No code, no discipline, but loyal companions you can count on when things go south.\n \nWanna drink some beer with friends? Adelante. Beat the crap out of Monolith freaks? Por supuesto. Kick some Duty ass? Knock yourself out! Plenty of opportunities for a great experience.</text>
+	</string>
+	<string id="st_mil_smart_terrain_7_7_freedom_leader_stalker_life_end">
+		<text>Maybe another time, man? I've got some boys who want to see me soon.</text>
+	</string>
+	
+<!-- (Freedom guide) -->
+	<string id="mil_freedom_guid_meet_0">
+		<text>Hey, what's up?</text>
+	</string>
+	<string id="mil_freedom_guid_meet_1">
+		<text>Nothing much. I'm Leshiy, nice to meet you. I'm the local guide and scout.</text>
+	</string>
+	<string id="mil_freedom_guid_meet_2">
+		<text>And how's the local intelligence? I presume you've visited many places.</text>
+	</string>
+	<string id="mil_freedom_guid_meet_3">
+		<text>Indeed. I've even been in an anomaly. That was when I was still a mercenary... entered a spatial bubble with my squad. It's a long story. Anyway, I offer guides to the Cordon, Yantar and Yanov station in Jupiter. Forty-five hundred, five thousand, and six thousand rubles respectively.</text>
+	</string>
+	<string id="mil_freedom_guid_meet_4">
+		<text>I'll keep that in mind.</text>
+	</string>
+
+	<string id="mil_freedom_guid_go_0">
+		<text>Lead me somewhere.</text>
+	</string>
+	<string id="mil_freedom_guid_go_1">
+		<text>Sure, man. Where to?</text>
+	</string>
+		<string id="mil_freedom_guid_go_2">
+			<text>To Yanov. %c[d_orange][6000 RU]</text>
+		</string>
+		<string id="mil_freedom_guid_go_5">
+			<text>Need the money first, pal.</text>
+		</string>
+		<string id="mil_freedom_guid_go_8">
+			<text>Here, all yours.</text>
+		</string>
+		<string id="mil_freedom_guid_go_3">
+			<text>To the Cordon. %c[d_orange][4500 RU]</text>
+		</string>
+		<string id="mil_freedom_guid_go_6">
+			<text>Got the money?</text>
+		</string>
+		<string id="mil_freedom_guid_go_9">
+			<text>Here, keep it.</text>
+		</string>
+		<string id="mil_freedom_guid_go_4">
+			<text>To Yantar. %c[d_orange][5000 RU]</text>
+		</string>
+		<string id="mil_freedom_guid_go_7">
+			<text>Did you bring the money?</text>
+		</string>
+		<string id="mil_freedom_guid_go_10">
+			<text>Por supuesto. Aqu&#237;.</text>
+		</string>
+	<string id="mil_freedom_guid_go_11">
+		<text>Forgot it.</text>
+	</string>
+	<string id="mil_freedom_guid_go_12">
+		<text>He cambiado de opinion.</text>
+	</string>
+
+</string_table> 

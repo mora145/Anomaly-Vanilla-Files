@@ -1,0 +1,74 @@
+
+-- Created by tdef
+-- db for items
+
+local online_devices = {}
+local online_multiuse = {}
+
+function add_online_devices(id)
+	online_devices[id] = true
+end
+
+function remove_online_devices(id)
+	online_devices[id] = nil
+end
+
+
+function add_online_multiuse(id)
+	online_multiuse[id] = true
+end
+
+function remove_online_multiuse(id)
+	online_multiuse[id] = nil
+end
+
+
+local function on_game_load()
+	
+	-- Clear non-existing devices items
+	local mdata_device = alife_storage_manager.get_state().device_condition
+	if mdata_device then
+		for k,v in pairs(mdata_device) do
+			local se_obj = alife_object(k)
+			if not (se_obj and ini_sys:r_bool_ex(se_obj:section_name(),"use_condition")) then
+				mdata_device[k] = nil
+			end
+		end
+		alife_storage_manager.get_state().device_condition = mdata_device -- might not be needed cause table references
+	end
+	
+	-- Clear non-existing multiuse items
+	local mdata_multiuse = alife_storage_manager.get_state().item_remaining_uses
+	if mdata_multiuse then
+		for k,v in pairs(mdata_multiuse) do
+			local se_obj = alife_object(k)
+			if not (se_obj and itms_manager.is_multi_use(nil,se_obj:section_name())) then
+				mdata_multiuse[k] = nil
+			end
+		end
+		alife_storage_manager.get_state().item_remaining_uses = mdata_multiuse -- might not be needed cause table references
+	end
+end
+
+local function save_state(mdata)
+	for k,_ in pairs(online_devices) do
+		local obj = level.object_by_id(k)
+		local cond = nil
+		if obj then cond = obj:condition() end
+		if not mdata.device_condition then mdata.device_condition = {} end
+		mdata.device_condition[k] = cond
+	end
+	
+	for k,_ in pairs(online_multiuse) do
+		local obj = level.object_by_id(k)
+		local remaining_uses = nil
+		if obj then remaining_uses = obj:get_remaining_uses() end
+		if not mdata.item_remaining_uses then mdata.item_remaining_uses = {} end
+		mdata.item_remaining_uses[k] = remaining_uses
+	end
+end
+
+function on_game_start()
+	RegisterScriptCallback("on_game_load",on_game_load)
+	RegisterScriptCallback("save_state",save_state)
+end

@@ -1,0 +1,304 @@
+--[[
+
+-- Created by Tronex
+-- Date: 2018/11/4
+-- Used by other scripts to set condition of items
+-- Stores conditions using Marshal Library of item class that don't store conditions by default as a temp solution
+-- 2019/9/1 - savegame compatibility for parts
+
+--]]
+
+
+local ini_parts = itms_manager.ini_parts
+local process_con = {} -- update condition of items, key = id, value = condition
+local process_uses = {}local max_con = 99
+local min_con = 1
+local diff_con = 2 -- if condition difference between old and new state is less than this, don't re-evaluate parts condition
+
+local temp = {}
+local MDATA = {}
+
+local uc = utils.clamp
+local mceil = math.ceil
+local mfloor = math.floor
+local mabs = math.abs
+local sfind = string.find
+
+function add_con_to_process(id,con)
+	process_con[id] = con
+end
+
+function add_uses_to_process(id,uses)
+	process_uses[id] = uses
+end
+
+function remove_from_process(id, str)
+	temp[id] = temp[id] and (temp[id] + 1) or 0
+	if (temp[id] > 10) and process_con[id] then
+		process_con[id] = nil
+		temp[id] = nil
+		
+		if DEV_DEBUG then
+			local obj = level.object_by_id(id)
+			if obj then
+				local p = obj:parent()
+				printf("! txr_condition | removed item from process (%s): (%s) [%s] - owner: (%s) [%s]", str, id, obj:section(), p and p:id() or "-", p and p:section() or "-")
+			end
+		end
+	end
+end
+
+local val = {}
+local t_sign = {}
+local st = {}
+function evaluate_parts(obj)
+	--[[
+	if not (IsWeapon(obj) or IsOutfit(obj) or IsHeadgear(obj)) then
+		return nil
+	end
+	--]]
+	
+	local sec = obj:section()
+	sec = ini_sys:r_string_ex(sec,"parent_section") or sec -- for weapons with scopes
+	local id = obj:id()
+	local m_con = mceil(obj:condition() * 100) -- default condition of the item
+	
+	local parts = ini_parts:r_string_ex("con_parts_list",sec)
+	if parts then
+		parts = alun_utils.str_explode(parts,",")
+		
+		-- Savegame compatibility. Recalculate with changed parts
+		if MDATA[id] and MDATA[id][sec] then
+			for i=1,#parts do
+				if (not MDATA[id][parts[i]]) then
+					empty_table(MDATA[id])
+					break
+				end
+			end
+		end
+		
+		-- Re-evaluate saved parts conditions
+		if MDATA[id] and MDATA[id][sec] then
+			-- negative differance = increase con
+			local d_con = m_con - MDATA[id][sec] --MDATA[id][sec] - m_con
+			
+			if (mabs(d_con) < diff_con) then
+				return MDATA[id] -- don't evaluate if con differance is very small
+			end
+			
+			local sign = d_con < 0 and true or false
+			local c = #parts
+			local pd_con = mabs(d_con) * c
+			
+			-- Collect saved parts condition
+			empty_table(val)
+			for i=1,c do
+				val[i] = MDATA[id][parts[i]] or 0
+				if (sign and val[i] <= min_con) or ((not sign) and val[i] >= max_con) then
+					val[i] = nil
+				end
+			end
+			
+			-- Condition decreament/increasement based on condition difference since last evaluation
+			for i=1,pd_con do
+				local pick = random_key_table(val)
+				if (not pick) then
+					break
+				end
+				
+				val[pick] = val[pick] + 1*(sign and -1 or 1)
+				if (sign and val[pick] <= min_con) or ((not sign) and val[pick] >= max_con) then
+					val[pick] = nil
+				end
+			end
+			
+			MDATA[id][sec] = m_con
+			for i=1,c do
+				MDATA[id][parts[i]] = val[i] or (sign and min_con) or ((not sign) and max_con)
+				--printf("/ Re-evaluate part condition: MDATA(%s)[%s] - part[%s] = %s", id, sec, parts[i], MDATA[id][parts[i]])
+			end
+			
+		-- Evaluate non-existing parts condition for the first time
+		else
+			MDATA[id] = {}
+			MDATA[id][sec] = m_con
+			
+			empty_table(t_sign)      -- temp table for parts
+			empty_table(st)          -- stacker
+			local c = #parts         -- num of parts
+			local diff = 100 - m_con -- decreasement in item condition
+			
+			-- Decide which parts have better condition than others
+			local num_of_t_signs = math.random(c) -- how many parts with better condition
+			local unique_indx -- index of unique part to give it low condition, like helmets
+			for i=1,c do
+				t_sign[i] = 1
+				if sfind(parts[i],"helm_") then
+					unique_indx = i
+				end
+			end
+			while (size_table(st) < num_of_t_signs) do
+				local pick = math.random(c)
+				if (not st[pick]) then
+					st[pick] = true
+					t_sign[pick] = -1
+					--printf("-t_sign[%s] = -1", pick)
+				end
+			end
+			
+			-- If a unique part is found: give it low condition + switch another part to a high conditino 
+			if unique_indx and (t_sign[unique_indx] == 1) then
+				t_sign[unique_indx] = -1
+				for i=1,c do
+					if (i ~= unique_indx) and (t_sign[i] == -1) then
+						t_sign[i] = 1
+						break
+					end
+				end
+			end
+			
+			-- Decide condition for each part
+			empty_table(val)
+			local delta_m = mceil(diff/num_of_t_signs) -- 33
+			local delta_p = mceil(diff/(c - num_of_t_signs)) -- 16
+			for i=1,c do
+				if t_sign[i] == 1 then
+					local delta = math.random(mfloor(delta_p/2),delta_p)
+					val[i] = diff - delta
+					--printf("-delta_p[%s] = %s | diff = %s | val[%s] = %s", i, delta, diff, i, val[i])
+				else
+					local delta = math.random(mfloor(delta_m/2),delta_m)
+					val[i] = diff + delta
+					--printf("-delta_m[%s] = %s | diff = %s | val[%s] = %s", i, delta, diff, i, val[i])
+				end
+			end
+			
+			for i=1,c do
+				MDATA[id][parts[i]] = uc(mceil(100 - val[i]), min_con, max_con) -- condition of a part, %100 scale
+				--printf("/ Evaluate part condition: MDATA(%s)[%s] - part[%s] = %s", id, sec, parts[i], MDATA[id][parts[i]])
+			end
+			
+			--	local all = 0
+			--	for i=1,c do
+			--		all = all + MDATA[id][parts[i]]
+			--	end
+			--	
+			--	printf("= Average cond = %s", all/c)
+		end
+	end
+	
+	return MDATA[id]
+end
+
+function set_parts_con(id, tbl)
+	MDATA[id] = tbl
+end
+
+function get_parts_con(obj, id, evaluate)
+	if obj and evaluate then
+		return evaluate_parts(obj)
+	end
+	return id and MDATA[id]
+end
+
+function clear_parts_con(id)
+	MDATA[id] = nil
+end
+
+function copy_parts_con(id_from, id_to)
+	if MDATA[id_from] then
+		MDATA[id_to] = {}
+		copy_table( MDATA[id_to] , MDATA[id_from] )
+	end
+end
+
+function clean_data()
+	for id,v in pairs(MDATA) do
+		local se_obj = alife_object(id)
+		if se_obj then
+			local sec = se_obj:section_name()
+			sec = ini_sys:r_string_ex(sec,"parent_section") or sec -- for weapons with scopes
+			if not (se_obj and ini_parts:r_string_ex("con_parts_list",sec)) then
+				MDATA[id] = nil
+			end
+		else
+			MDATA[id] = nil
+		end
+	end
+end
+
+
+
+local function actor_on_update()
+	for id,con in pairs(process_con) do
+		local obj = level.object_by_id(id)
+		if obj then
+			--printf("-txr_condition | processing condition - id: %s - con: %s",id,con)
+			obj:set_condition(con)
+			local new_con = obj:condition()
+			if (new_con < con + 0.05) and (new_con > con - 0.05) then -- range
+				process_con[id] = nil
+			else
+				remove_from_process(id,"can't set condition!")
+			end
+		else
+			remove_from_process(id,"no game object!")
+		end
+	end
+	
+	for id,uses in pairs(process_uses) do
+		local obj = level.object_by_id(id)
+		if obj then
+			--printf("-txr_condition | processing uses - id: %s - uses: %s",id,uses)
+			obj:set_remaining_uses(uses)
+			if (obj:get_remaining_uses() == uses) then
+				process_uses[id] = nil
+			else
+				remove_from_process(id,"can't set uses!")
+			end
+		else
+			remove_from_process(id,"no game object!")
+		end
+	end
+end
+
+local function actor_on_item_take(obj)
+	evaluate_parts(obj)
+end
+
+local function save_state(m_data)
+	m_data.item_parts_state = MDATA
+end
+
+local function load_state(m_data)
+	MDATA = m_data.item_parts_state or {}
+end
+
+local function on_before_level_changing()
+	clean_data()
+	printdbg("~ txr_condition | cleaned parts data of non-important objects")
+end
+
+function on_game_start()
+	RegisterScriptCallback("save_state",save_state)
+	RegisterScriptCallback("load_state",load_state)
+	RegisterScriptCallback("actor_on_update",actor_on_update)
+	RegisterScriptCallback("actor_on_item_take",actor_on_item_take)
+	RegisterScriptCallback("on_before_level_changing",on_before_level_changing)
+end
+
+
+function print_con_tbl(tbl,str)
+	for k,v in pairs(tbl) do
+		printf("/ txr_condition | %s | id: %s - con: %s", str, k, v)
+	end
+end
+
+function print_parts_tbl()
+	for id,v in pairs(MDATA) do
+		printf("/ parts table for (%s)", id)
+		for k1,v1 in pairs(v) do
+			printf("/ [%s] - condition: %s", k1, v1)
+		end
+	end
+end

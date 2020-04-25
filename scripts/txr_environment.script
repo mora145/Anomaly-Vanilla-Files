@@ -1,0 +1,870 @@
+--==============================================================================================
+-- Tronex
+-- 2018/12/1
+-- Environment and weather effects, and impact on player
+-- This script manager them at once to reduce resources usage
+--==============================================================================================
+
+local sur_ini = ini_file("misc\\surge_manager.ltx")
+local SafeCover = alun_utils.collect_section(sur_ini,"list",true)
+
+local uc = utils.clamp
+local mr = math.random
+local mf = math.floor
+local smatch = string.match
+
+local last_cover = false
+local effects_tiny_enabled = false
+local effects_fog_enabled = false
+local effects_wind_enabled = false
+local effects_rain_enabled = false
+local level_name = "na"
+bLevelUnderground = false
+is_inside = false
+
+
+--=======================================< Update >=======================================--
+local droplet_reset = false
+local droplet_last_pwr
+local droplet_last_speed
+local droplet_pwr = 0
+local droplet_speed = 0
+local droplet_time = 500 -- ms
+local droplet_update = time_global() or 0
+local droplet_step = 0.005	--0.02
+function update_rain_droplets(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+	
+	--if bLevelUnderground or (rain_factor < 0.1) then
+		--droplet_pwr = 0
+	
+	-- Mask Cleaning
+	if droplet_reset then
+		droplet_pwr = droplet_pwr - 0.1
+		droplet_pwr = uc(droplet_pwr,0,1)
+
+		if (droplet_pwr <= 0.01) then
+			droplet_reset = false
+		end
+	
+	-- Rain droplets building
+	elseif (effects_droplets_enabled) and (txr_actor_effects.is_mask_on()) then
+		if (time_g > droplet_update) then
+			droplet_update = time_g + droplet_time
+			local step = (not inside) and (rain_factor > 0.2) and (rain_volume > 0.2) and droplet_step or 0 --(-1*droplet_step)
+			--droplet_pwr = droplet_pwr + (step * uc(rain_factor,0.5,1))
+			droplet_pwr = droplet_pwr + ((step > 0) and (step * uc(rain_factor,0.5,1)) or -droplet_step)
+			droplet_pwr = uc(droplet_pwr,0,1)
+			
+			-- fall speed
+			--
+			if (step > 0) then
+				droplet_speed = 1
+			else
+				droplet_speed = 0.1
+			end
+			--
+		end
+	else
+		droplet_pwr = 0
+	end 
+	
+	-- When there are barely any raindrops, fall speed will be resetted
+	if (droplet_pwr < 0.1) then
+		droplet_speed = 0
+	end
+	
+	if (droplet_pwr ~= droplet_last_pwr) or (droplet_speed ~= droplet_last_speed) then
+		--printf("-Rain droplets | power: %s - speed: %s", droplet_pwr, droplet_speed)
+		local str = strformat("r2_drops_control %s,0,%s", droplet_pwr, droplet_speed)
+		get_console():execute(str)
+		droplet_last_pwr = droplet_pwr
+		droplet_last_speed = droplet_speed
+		alife_storage_manager.get_state().r2_drops_control = { droplet_pwr , droplet_speed } -- save
+	end
+end
+
+local tiny_particles
+local tiny_time = 100
+local tiny_update = time_global() or 0
+function update_tiny(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+	
+	if (not effects_tiny_enabled) then return end
+	
+	-- Dust indoors
+	if inside then
+		--[[
+		if (not tiny_particles) then
+			tiny_particles = particles_object("lanforse\\dust_particles")
+		end
+		
+		local apos = pos
+		pos:add(device().cam_dir:mul(3))
+		pos.y = apos.y + 1
+		
+		if (not tiny_particles:playing())then
+			tiny_particles:play_at_pos(pos)
+			--printf("-Playing particles: dust_particles")
+		end
+		--]]
+		
+	-- Falling snow during cloudy
+	elseif (wthr == "cloudy") and (rain_factor > 0.5) and (level_weathers.get_weather_manager():get_curr_ambient() == "tuman") then
+		--[[
+		if (not tiny_particles) then
+			tiny_particles = particles_object("lanforse\\snow_light")
+		end
+		
+		pos.y = pos.y + 0
+		pos:add(device().cam_dir:mul(5))
+		
+		if (time_g > tiny_update) then
+			tiny_update = time_g + tiny_time
+			tiny_particles:play_at_pos(pos)
+			--printf("-Playing particles: snow_light")
+		end
+		--]]
+		
+	-- Flying leaves during storms
+	elseif (wthr == "storm") and (rain_volume > 0.5) then	
+		if (not tiny_particles) then
+			tiny_particles = particles_object("lanforse\\storm_heavy")
+		end
+		
+		pos.x = pos.x + mr(-10,10)
+		pos.y = uc(pos.y,pos.y,20)
+		pos.z = pos.z - 20
+		
+		if (time_g > tiny_update) then
+			tiny_update = time_g + tiny_time
+			tiny_particles:play_at_pos(pos)
+			--printf("-Playing particles: storm_heavy")
+		end
+		
+	elseif (tiny_particles and tiny_particles:playing()) then
+		tiny_particles:stop()
+		tiny_particles = nil
+	end
+end
+
+local fog_particles
+local fog_time = 150000
+local fog_update = time_global() or 0
+function update_fog(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+
+	if (not effects_fog_enabled) then return end
+	
+	-- Fog underground
+	if bLevelUnderground then
+		if (not fog_particles) then
+			fog_particles = particles_object("lanforse\\fog_heav1_dx10")
+		end
+		
+		local apos = pos
+		pos:add(device().cam_dir:mul(5))
+		pos.y = apos.y + 1
+		if (time_g > fog_update)then
+			fog_update = time_g + 10000
+			fog_particles:play_at_pos(pos)
+			--printf("-Playing particles: fog_heav1_dx10")
+		end
+		
+	-- Fog outside
+	elseif (not inside) and ((wthr == "clear") or (wthr == "foggy")) and (current_hour >= 4) and (current_hour < 20)  and (rain_factor > 0.1) then
+		if (not fog_particles) then
+			fog_particles = particles_object("a_ufp_particles\\fog_move")
+		end
+		
+		local apos = pos.y
+		pos:add(device().cam_dir:mul(200))
+		pos.y = uc(apos,pos.y,6)+1
+		
+		if (time_g > fog_update) then
+			fog_update = time_g + fog_time
+			fog_particles:play_at_pos(pos)
+			--printf("-Playing particles: fog_move")
+		end
+		
+	elseif (fog_particles and fog_particles:playing()) then
+		fog_particles:stop()
+		fog_particles = nil
+	end
+end
+
+local pfx
+local pfx_time = 100
+local pfx_update = time_global()
+function update_pfx(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+
+	if (not effects_fog_enabled) then return end
+
+	if inside then
+		if (pfx and pfx:playing()) then
+			pfx:stop()
+			pfx = nil
+		end
+		return
+	end
+
+	local daytime = (current_hour >= 5) and (current_hour < 20) and true or false
+	
+	-- Fog heavy during daytime
+	if (wthr == "foggy") and (daytime)then
+		if (not pfx) then
+			pfx = particles_object("lanforse\\fog_heavy_dx10")
+		end
+		
+		pos.x = pos.x + 0
+		pos.y = uc(pos.y,pos.y,1)+1
+		pos.z = pos.z + 0
+		
+		if (rain_factor > 0.1) then
+			if (time_g > pfx_update) then
+				pfx_update = time_g + pfx_time
+				pfx:play_at_pos(pos)
+				--printf("-Playing particles: fog_heavy_dx10")
+			end
+		end
+		
+	-- Fog light during nighttime
+	elseif (wthr == "foggy") and (not daytime) then
+		if (not pfx) then
+			pfx = particles_object("lanforse\\fog_light")
+		end
+		
+		pos.x = pos.x + 0
+		pos.y = uc(pos.y,pos.y,1)+0.5
+		pos.z = pos.z + 0
+		
+		if (rain_factor > 0.05) then
+			if (time_g > pfx_update) then
+				pfx_update = time_g + pfx_time
+				pfx:play_at_pos(pos)
+				--printf("-Playing particles: fog_light")
+			end
+		end
+	
+	-- Mist during clear weather
+	elseif (wthr == "clear") and (daytime) then
+		if not pfx then
+			pfx = particles_object("lanforse\\fog_mist")
+		end
+		
+		local apos = pos.y
+		pos:add(device().cam_dir:mul(80))
+		pos.y = uc(apos,pos.y,6) + 1
+		
+		if (not pfx:playing())then
+			pfx:play_at_pos(pos)
+			--printf("-Playing particles: fog_mist")
+		end
+
+	elseif (pfx and pfx:playing()) then
+		pfx:stop()
+		pfx = nil
+	end
+end
+
+local pulse_ano_sound = sound_object("anomaly\\emi_blowout")
+local pulse_ano_sound_dist = sound_object("anomaly\\emi_blowout_01")
+local pulse_ano_pfx = particles_object("generator\\generator_accum_thunderbolt")
+local pulse_ano_delay = 2 * 60 * 1000 -- msec
+local pulse_ano_max_distance = 150 -- m
+local pulse_ano_p_hit_distance = 10 -- m
+local pulse_ano_e_hit_distance = 20 -- m
+local pulse_ano_article_distance = 50 -- m
+local pulse_ano_snd_distance = 150 -- m
+local pulse_ano_hit_delay = 11.5 -- sec
+local pulse_ano_snd_delay = 5.5 -- sec
+local pulse_ano_chance = {
+	["clear"] = 0,
+	["partly"] = 0,
+	["cloudy"] = 10,
+	["rain"] = 15,
+	["storm"] = 25,
+	["foggy"] = 0,
+}
+local pulse_ano_maps = {
+	["k00_marsh"]             = 0.5,
+	["k01_darkscape"]         = 1,
+	["k02_trucks_cemetery"]   = 1,
+	["l01_escape"]            = 0.2,
+	["l02_garbage"]           = 0.7,
+	["l03_agroprom"]          = 0.5,
+	["l04_darkvalley"]        = 0.5,
+	["l06_rostok"]            = 1,
+	["l07_military"]          = 0.5,
+	["l08_yantar"]            = 0.7,
+	["l09_deadcity"]          = 0.5,
+	["l10_red_forest"]        = 1,
+	["jupiter"]               = 1,
+	["pripyat"]               = 1,
+	["zaton"]                 = 1,
+	["l13_generators"]        = 1.5,
+	["l12_stancia_2"]         = 1.5,
+	["l12_stancia"]           = 1.5,
+	["l11_pripyat"]           = 0.2,
+	["l10_radar"]             = 1,
+	["y04_pole"]			  = 0.7,
+}
+local pulse_ano_first = true
+local pulse_ano_update = time_global()
+function update_pulse_ano(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+	if pulse_ano_first then
+		pulse_ano_update = time_g + pulse_ano_delay
+		pulse_ano_first = false
+		return
+	end
+	
+	if bLevelUnderground or (time_g < pulse_ano_update) then
+		return
+	end
+	pulse_ano_update = time_g + pulse_ano_delay
+	
+	local lvl_factor = pulse_ano_maps[level.name()] or 0
+	local weather_chance = pulse_ano_chance[wthr] or 1
+	if (math.random(100) > (weather_chance * lvl_factor)) then
+		return
+	end
+	
+	local angle_dec=math.random(0,359)
+	local angle_rad=math.rad(angle_dec)
+	local ano_distance=math.random(0,pulse_ano_max_distance)
+	local pos_x=math.cos(angle_rad)*ano_distance
+	local pos_z=math.sin(angle_rad)*ano_distance
+	local particle_pos= vector():set(pos.x+pos_x, pos.y+60, pos.z+pos_z)
+	local sound_pos= vector():set(pos.x+pos_x, pos.y+60, pos.z+pos_z)
+	
+	pulse_ano_pfx:play_at_pos(particle_pos)
+	
+	local function play_anomaly_sound(particle_pos)
+		local distance = distance_2d(db.actor:position(), particle_pos)
+		local pulse_ano_snd = (distance > pulse_ano_snd_distance) and pulse_ano_sound_dist or pulse_ano_sound
+		
+		if pulse_ano_snd and pulse_ano_snd:playing() then
+			pulse_ano_snd:stop()
+		end
+		if pulse_ano_snd ~= nil then
+			pulse_ano_snd:play_at_pos(db.actor, sound_pos)
+			pulse_ano_snd.volume = 1
+		end
+		return true
+	end
+	CreateTimeEvent(0, "play_sound_pulse", pulse_ano_snd_delay, play_anomaly_sound, particle_pos)
+	
+	local function hit_actor(inside,particle_pos)
+		if inside then
+			return true
+		end
+		
+		local hit_power = 0
+		local distance = distance_2d(db.actor:position(), particle_pos)
+		
+		-- Article
+		if distance < pulse_ano_article_distance then
+			dxr_encyclopedia.create_interaction("anomalies", "pulse")
+		end
+		
+		-- Psi hit
+		if distance < pulse_ano_p_hit_distance then
+			hit_power = math.cos(distance * math.pi / pulse_ano_p_hit_distance) + 1
+			local h = hit()
+			h.type = hit.telepatic
+			if (is_actor_immune() or dialogs_yantar.actor_has_psi_helmet()) then 
+				h.power = 0
+			else 
+				h.power = surge_manager.SurgeManager:hit_power(hit_power, h.type)
+			end		
+			h.impulse = 0
+			h.direction = VEC_Z
+			h.draftsman = db.actor
+			
+			db.actor:hit(h)
+	
+			level.remove_pp_effector(666)
+			level.add_pp_effector("psi_fade.ppe", 666, false)
+			level.set_pp_effector_factor(666,h.power)
+		end
+		
+		-- Electric hit
+		if distance < pulse_ano_e_hit_distance then
+			hit_power = math.cos(distance * math.pi / pulse_ano_e_hit_distance) + 1
+			local h = hit()
+			h.type = hit.shock
+			if (is_actor_immune()) then 
+				h.power = 0
+			else 
+				h.power = surge_manager.SurgeManager:hit_power(hit_power, h.type)
+			end
+			h.impulse = 0
+			h.direction = VEC_Z
+			h.draftsman = db.actor
+			db.actor:hit(h)
+			level.remove_pp_effector(667)
+			level.add_pp_effector("electro_fade.ppe", 667, false)
+			level.set_pp_effector_factor(667,h.power)
+		end
+		
+		return true
+	end
+	CreateTimeEvent(0, "delay_pulse", pulse_ano_hit_delay, hit_actor, inside, particle_pos)
+end
+
+local radd_last_outfit_id, radd_last_outfit_res
+local radd_last_helmet_id, radd_last_helmet_res
+local radd_value = 0
+local radd_prev_time = 0
+local radd_time_step = 287
+local radd_base = 0.00047
+local radd_factor = 0.5
+local radd_day_factor = 1
+local radd_night_factor = 0.5
+local radd_weather = {
+	["clear"] = 0.85,
+	["partly"] = 0.85,
+	["cloudy"] = 0.75,
+	["rain"] = 0.65,
+	["storm"] = 0.55,
+	["foggy"] = 0.3,
+}
+function update_radiation_day(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+	if not difficulty_manager.get_game_factor("radiation_day") then
+		radd_value = 0
+		return
+	end
+	
+	if inside and (not bLevelUnderground) then
+		radd_value = 0
+		return
+	end
+	
+	local delta_time = time_g - radd_prev_time
+	if (delta_time < radd_time_step) then
+		return
+	end
+	radd_prev_time = time_g
+	
+	-- Weather and time factors
+	local weather_factor = wthr and radd_weather[wthr] or 1
+	local day_factor = 1
+	if (not bLevelUnderground) then
+		day_factor = xr_conditions.is_day() and radd_day_factor or radd_night_factor
+	end
+	
+	
+	local actor = db.actor
+	
+	-- Outfit factor
+	local obj_outfit = actor:item_in_slot(7)
+	local sec_outfit = obj_outfit and obj_outfit:section()
+	local id_outfit = obj_outfit and obj_outfit:id()
+	local outfit_resist = 0
+	
+	if id_outfit and (id_outfit == radd_last_outfit_id) then
+		outfit_resist = (radd_last_outfit_res * obj_outfit:condition()) or 0
+	elseif obj_outfit then --Yasti: check if the suit has upgrades which effect radiation protection
+		local se_outfit = id_outfit and alife_object(id_outfit)
+		if se_outfit then
+			local data = stpk_utils.get_item_data(se_outfit)
+			for k,v in pairs(data.upgrades) do
+				local upgrade_sect = alun_utils.read_from_ini(ini_sys, tostring(v), "section", "string", nil)
+				if upgrade_sect then
+					local upgrade_rad = alun_utils.read_from_ini(ini_sys, upgrade_sect, "radiation_protection", "float", 0)
+					outfit_resist = outfit_resist + upgrade_rad
+				end
+			end
+			outfit_resist = (outfit_resist + ini_sys:r_float(sec_outfit, "radiation_protection")+0.015) --Yasti: suits rad protection affects amount of rads actor gets hit with
+			radd_last_outfit_res = outfit_resist
+			radd_last_outfit_id = id_outfit
+			outfit_resist = outfit_resist * obj_outfit:condition()
+		end
+	else
+		id_outfit = nil
+	end
+	
+	-- Helmet factor
+	local obj_helmet = actor:item_in_slot(12)
+	local sec_helmet = obj_helmet and obj_helmet:section()
+	local id_helmet = obj_helmet and obj_helmet:id()
+	local helmet_resist = 0
+	
+	if id_helmet and (id_helmet == radd_last_helmet_id) then
+		helmet_resist = (radd_last_helmet_res * obj_helmet:condition()) or 0
+	elseif obj_helmet then --Yasti: check if the suit has upgrades which effect radiation protection
+		local se_helmet = id_helmet and alife_object(id_helmet)
+		if se_helmet then
+			local data = stpk_utils.get_item_data(se_helmet)
+			for k,v in pairs(data.upgrades) do
+				local upgrade_sect = alun_utils.read_from_ini(ini_sys, tostring(v), "section", "string", nil)
+				if upgrade_sect then
+					local upgrade_rad = alun_utils.read_from_ini(ini_sys, upgrade_sect, "radiation_protection", "float", 0)
+					helmet_resist = helmet_resist + upgrade_rad
+				end
+			end
+			helmet_resist = (helmet_resist + ini_sys:r_float(sec_helmet, "radiation_protection")+0.01) --Yasti: suits rad protection affects amount of rads actor gets hit with
+			radd_last_helmet_res = helmet_resist
+			radd_last_helmet_id = id_helmet
+			helmet_resist = helmet_resist * obj_helmet:condition() 
+		end
+	else
+		id_helmet = nil
+	end
+	
+	local actor_resist = (helmet_resist + outfit_resist)/100
+	
+	-- Finale
+	local delta_rad = (radd_base * weather_factor * day_factor) - actor_resist
+	if (delta_rad < 0.00000001) then
+		radd_value = 0
+		return
+	end
+	
+	--db.actor:change_radiation(delta_rad)
+	radd_value = delta_rad
+	--printf("- Radiation Day | delta_rad: %s = (radd_base: %s) x (weather_factor: %s) x (day_factor: %s) - (actor_resist: %s)", delta_rad, radd_base, weather_factor, day_factor, actor_resist)
+end
+
+
+local radi_arty = {}
+local radi_value = 0
+local radi_time_previous = 0
+local radi_time_step = 287
+local radi_factor = 0.5
+local radi_time_u_previous = 20 * 1000
+local radi_time_u_step = 20 * 1000
+function update_radiation_inventory(time_g)
+
+	local time_delta = time_g - radi_time_previous
+	if (time_delta >= radi_time_step) then
+		local stepped_delta = math.min(5, time_delta/radi_time_step)
+		local delta_rad = (radi_value + radd_value) * stepped_delta
+		
+		if (delta_rad ~= 0) then
+			delta_rad = delta_rad * radi_factor
+			--printf("- Radiation Total = %s | artefacts: %s - air: %s", delta_rad, radi_value, radd_value)
+			
+			if delta_rad < 0 then 
+				delta_rad = 0
+			end
+			
+			db.actor:change_radiation(delta_rad)
+		end
+		radi_time_previous = time_g
+	end
+	
+	-- Update artefacts table every x seconds
+	if (time_g > radi_time_u_previous) then
+		radi_time_u_previous = time_g + radi_time_u_step
+		
+		empty_table(radi_arty)
+		
+		local function itr(obj)
+			if IsArtefact(obj) then
+				local sec = obj:section()
+				local radiation = ini_sys:r_float(sec, "radiation_restore_speed") or 0
+				if (radiation > 0) and (not db.actor:is_on_belt(obj)) then
+					register_artefact(obj:id(), radiation, true)
+				end
+			end	
+			return false
+		end
+		db.actor:inventory_for_each(itr)
+	end
+end
+
+
+local flicker_old_state = false
+local flicker_new_state = false
+local flicker_anim = {
+	[1] = "light_flicker",
+	[2] = "light\\light_galogen_br_01",
+	[3] = "light\\light_alarm_blim",
+}
+function update_light_flicker()
+
+	-- Toggle
+	if (flicker_new_state == flicker_old_state) then
+		return
+	end
+	flicker_old_state = flicker_new_state
+	
+	-- Turn flicker on/off for surrounding lamp
+	local function set_lamp_flicker(id, state)
+		local lamp_obj = level.object_by_id(id)
+		if lamp_obj then 
+			local lamp = lamp_obj:get_hanging_lamp()
+			if lamp then 
+				local visual = lamp_obj:get_visual_name()
+				if visual then 
+					if state then
+						local ca = (smatch(visual,"galogen") and flicker_anim[2]) or (smatch(visual,"alarm") and flicker_anim[3]) or flicker_anim[1]
+						local on_off_chance = math.random(25,75)
+						local on_off_time 	= math.random(0.5,1.5)
+						local fps = math.random(10,20)
+						lamp:set_color_animator(ca, true, on_off_chance, on_off_time, fps)
+					else
+						lamp:reset_color_animator() 
+					end
+				end
+			end
+		end
+	end
+	
+	-- Turn flicker on/off for surrounding lamp
+	local sim = alife()
+	for i=1, 65534 do
+		local se_obj = sim:object(i)
+		if se_obj and (se_obj:section_name() == "lights_hanging_lamp") then
+			local lamp_obj = level.object_by_id(se_obj.id)
+			if lamp_obj then 
+				set_lamp_flicker(se_obj.id, flicker_new_state)
+			end
+		end
+	end
+end
+
+
+--=======================================< Utility >=======================================--
+function update_settings()
+	--reset_lightning_settings()
+	effects_tiny_enabled = false
+	effects_fog_enabled = false
+	effects_wind_enabled = ui_options.get("sound/environment/wind_sound")
+	effects_rain_enabled = ui_options.get("sound/environment/helmet_rain_sound")
+	effects_droplets_enabled = ui_options.get("video/player/rain_droplets")
+end
+
+function reset_lightning_settings()
+	local ini = ini_file("default_light_settings.ltx")
+	if ini then
+		local con = get_console()
+		local n = ini:line_count("default_light_settings")
+		local result, id, value = "", "", ""
+		for i=0,n-1 do
+			result, id, value	= ini:r_line_ex("default_light_settings",i,"","")
+			if id and value then
+				con:execute(id .. " " .. value)
+			end
+		end
+	end
+end
+
+function droplets_reset()
+	droplet_reset = true
+end
+
+function distance_2d(p1, p2)
+	--return math.sqrt( (b.x-a.x)^2 + (b.z-a.z)^2 )
+	return p1:distance_to_xz(p2)
+end
+
+function is_actor_immune() -- Cleaner way to bunch together survival conditions.
+	-- Invulnerability after game load.
+	if (bind_stalker_ext.invulnerable_time and time_global() < bind_stalker_ext.invulnerable_time) then 
+		return true 
+	end
+	-- God mode console command enabled.
+	if (get_console():get_bool("g_god")) then
+		return true
+	end
+	
+	-- Marked by the Zone.
+	if (utils.load_var(db.actor,"surge_immuned",false) == true) then 
+		return true 
+	end
+	
+	-- Actor is a member of the Monolith or Zombified factions.
+	if (character_community(db.actor) == "actor_monolith")
+	or (character_community(db.actor) == "actor_zombied") then
+		return true
+	end
+	-- 'Radiotherapy' achievement has been unlocked.
+	if (dxr_achievements.has_achievement("radiotherapy")) then
+		if (math.random(1,100) < 25) then
+			return true
+		end
+	end
+	return false
+end
+
+function register_artefact(id, radiation, is_taken)
+	if not (id and radiation) then
+		return
+	end
+	
+	if is_taken and (not radi_arty[id]) then
+		radi_arty[id] = radiation
+		printdbg("/ Registered new arterfact with radiation | [%s] = %s rad", id, radiation)
+		
+	elseif (not is_taken) and radi_arty[id] then
+		radi_arty[id] = nil
+		printdbg("/ Unregistered old arterfact with radiation | [%s] = %s rad", id, radiation)
+	end
+	
+	local total_rad = 0
+	for id, rd in pairs(radi_arty) do
+		total_rad = total_rad + rd
+	end
+	
+	if (total_rad >= 0) then
+		radi_value = total_rad
+		--db.actor:change_radiation(total_rad)
+		--printf("- Constant radiation on actor from artefacts = %s", total_rad)
+	end
+end
+
+function set_light_flicker(state)
+	flicker_new_state = state and true or false
+end
+
+function get_light_flicker()
+	return flicker_new_state
+end
+
+
+--=======================================< Callbacks >=======================================--
+function on_key_press(key)
+	level.add_pp_effector('fade_out.ppe', 8023, false)
+	level.remove_pp_effector(3388)
+	local function fade_out()
+		
+		get_console():execute("snd_volume_music "..tostring(_G.mus_vol))
+		get_console():execute("snd_volume_eff "..tostring(_G.amb_vol))
+		_G.amb_vol = 0
+		_G.mus_vol = 0
+		
+		printf("- into_the_world END")
+		return true
+	end
+	CreateTimeEvent(0, "delay_fade_out", 1, fade_out)
+	UnregisterScriptCallback("on_key_press",on_key_press)
+end
+
+function into_the_world()
+	
+	if (level.name() ~= "fake_start") and (not has_alife_info("new_game_into_the_world")) then
+		level.add_pp_effector('black_infinite_2.ppe', 3388, true)
+		
+		_G.mus_vol = get_console():get_float("snd_volume_music")
+		_G.amb_vol = get_console():get_float("snd_volume_eff")
+		get_console():execute("snd_volume_music 0")
+		get_console():execute("snd_volume_eff 0")
+		
+		RegisterScriptCallback("on_key_press",on_key_press)
+		
+		db.actor:give_info_portion("new_game_into_the_world")
+		printf("- into_the_world START")
+	end
+end
+
+local function actor_on_first_update() -- update all current artefacts on first update
+	local function itr(obj)
+		if IsArtefact(obj) then
+			local sec = obj:section()
+			local radiation = ini_sys:r_float(sec, "radiation_restore_speed") or 0
+			if (radiation > 0) and (not db.actor:is_on_belt(obj)) then
+				register_artefact(obj:id(), radiation, true)
+			end
+		end	
+		return false
+	end
+	db.actor:inventory_for_each(itr)
+	
+	--into_the_world()
+end
+
+local function actor_on_update()
+	if (not db.actor) then
+		return
+	end
+	
+	-- Collect info
+	local pos = db.actor:position()
+	local rain_factor = level.rain_factor()
+	local rain_volume = level.get_rain_volume()
+	local current_hour = level.get_time_hours()
+	local wthr = level_weathers.get_weather_manager():get_curr_weather()
+	local time_g = time_global()
+	
+	-- Check if actor is inside an emission safe cover or not
+	local inside = false
+	--if bLevelUnderground or (last_cover and last_cover:inside(pos)) then
+	if bLevelUnderground or (last_cover and db.actor_inside_zones[last_cover]) then
+		inside = true
+	else
+		for k,v in pairs(SafeCover) do
+			if (db.actor_inside_zones[k]) then
+				last_cover = k
+				inside = true
+				break
+			end
+			
+			--local zone = db.zone_by_name[k]
+			--if (zone ~= nil and zone:inside(pos)) then
+			--	last_cover = zone
+			--	inside = true
+			--	break
+			--end
+		end
+	end
+	is_inside = inside
+	
+	-- Calls
+	txr_sounds.update_wind(rain_volume, inside, bLevelUnderground, effects_wind_enabled)
+	txr_sounds.update_rain_helm_sound(rain_factor, rain_volume, inside, bLevelUnderground, effects_rain_enabled)
+	
+	update_rain_droplets(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+	update_tiny(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+	update_pfx(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+	update_fog(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+	update_pulse_ano(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+	update_radiation_day(wthr, pos, rain_factor, rain_volume, inside, current_hour, time_g)
+	update_radiation_inventory(time_g)
+	update_light_flicker()
+end
+
+local function item_in(obj)
+	if IsArtefact(obj) then
+		local sec = obj:section()
+		local radiation = ini_sys:r_float(sec, "radiation_restore_speed") or 0
+		if (radiation > 0) then
+			register_artefact(obj:id(), radiation, true)
+		end
+	end	
+end
+
+local function item_out(obj)
+	if IsArtefact(obj) then
+		local sec = obj:section()
+		local radiation = ini_sys:r_float(sec, "radiation_restore_speed") or 0
+		if (radiation > 0) then
+			register_artefact(obj:id(), radiation, false)
+		end
+	end	
+end
+
+function on_game_start()
+
+	local function on_game_load()
+		--if (level.name() ~= "fake_start") then
+			update_settings()
+			bLevelUnderground = level_weathers.bLevelUnderground
+			level_name = level.name()
+			AC_ID = AC_ID
+			
+			-- Loading droplets val
+			local droplet = alife_storage_manager.get_state().r2_drops_control or {0,0}
+			droplet_pwr = uc(droplet[1],0,1)
+			droplet_speed = uc(droplet[2],0,1)
+			get_console():execute(strformat("r2_drops_control %s,0,%s", droplet_pwr, droplet_speed))
+			
+			RegisterScriptCallback("actor_on_item_take",item_in)
+			RegisterScriptCallback("actor_item_to_ruck",item_in)
+			RegisterScriptCallback("actor_on_item_drop",item_out)
+			RegisterScriptCallback("actor_item_to_belt",item_out)
+			RegisterScriptCallback("actor_on_first_update",actor_on_first_update)
+			RegisterScriptCallback("actor_on_update",actor_on_update)
+		--end
+	end
+	RegisterScriptCallback("on_game_load",on_game_load)
+	RegisterScriptCallback("on_option_change",update_settings)
+end 
